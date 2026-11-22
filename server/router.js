@@ -495,6 +495,13 @@ export async function handleApiRequest(req, res, options = {}) {
     return jsonResponse(res, 404, { error: 'Endpoint không tồn tại' });
   } catch (error) {
     console.error('[API Error]:', error);
-    return jsonResponse(res, 500, { error: error.message });
+    const msg = String(error?.message || '');
+    if (error?.code === 5 || msg.includes('5 NOT_FOUND')) {
+      const dbId = process.env.FIREBASE_DATABASE_ID || '(default)';
+      return jsonResponse(res, 500, {
+        error: `Cloud Firestore database "${dbId}" chưa tồn tại trên Firebase Project này (5 NOT_FOUND). Hãy vào Firebase Console -> Build -> Firestore Database -> Create database (chế độ Native, Database ID: "${dbId}") hoặc khai báo FIREBASE_DATABASE_ID trên Vercel.`
+      });
+    }
+    return jsonResponse(res, 500, { error: msg });
   }
 }

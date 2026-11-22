@@ -3,8 +3,8 @@
  * Dùng firebase-admin để chạy an toàn trên Vercel Serverless & Local Dev.
  */
 import fs from 'node:fs';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp, cert, getApps, getApp } from 'firebase-admin/app';
+import { getFirestore, initializeFirestore } from 'firebase-admin/firestore';
 import {
   DEFAULT_INVITATION_ID,
   DEFAULT_TIMELINE,
@@ -61,10 +61,20 @@ function getDb() {
   if (!serviceAccount) {
     throw new Error('Thiếu cấu hình Firebase (FIREBASE_SERVICE_ACCOUNT hoặc FIREBASE_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY).');
   }
-  if (getApps().length === 0) {
-    initializeApp({ credential: cert(serviceAccount) });
+  const app = getApps().length === 0 ? initializeApp({ credential: cert(serviceAccount) }) : getApp();
+  const databaseId = process.env.FIREBASE_DATABASE_ID || '(default)';
+  try {
+    cachedDb = initializeFirestore(
+      app,
+      {
+        preferRest: Boolean(process.env.VERCEL),
+        ignoreUndefinedProperties: true
+      },
+      databaseId
+    );
+  } catch {
+    cachedDb = getFirestore(app, databaseId);
   }
-  cachedDb = getFirestore();
   return cachedDb;
 }
 
