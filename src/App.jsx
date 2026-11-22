@@ -238,7 +238,7 @@ function AdminPanel({
     return allThemes.find((t) => t.id === invitation?.theme?.id) || THEMES[0];
   });
 
-  // Sync theme when guest changes
+  // Sync theme when guest or invitation.theme from DB changes
   useEffect(() => {
     if (currentGuest) {
       const resolved = resolveGuestTheme(currentGuest, allThemes);
@@ -246,8 +246,13 @@ function AdminPanel({
       if (resolved.layoutConfig) {
         setInvitation((prev) => ({ ...prev, layout: resolved.layoutConfig }));
       }
+    } else if (invitation?.theme?.id) {
+      const matchedInvTheme = allThemes.find((t) => t.id === invitation.theme.id);
+      if (matchedInvTheme) {
+        setTheme(matchedInvTheme);
+      }
     }
-  }, [currentGuest, allThemes]);
+  }, [currentGuest, invitation?.theme?.id, allThemes]);
 
   // Check DB connection status
   useEffect(() => {
@@ -596,8 +601,9 @@ export default function App() {
       if (data?.invitation) {
         const dbInv = data.invitation;
 
+        let mappedTpls = [];
         if (data.templates?.length > 0) {
-          const mappedTpls = data.templates.map((t) => ({
+          mappedTpls = data.templates.map((t) => ({
             ...createDynamicTheme({
               name: t.name,
               mode: t.mode || 'dark',
@@ -614,36 +620,44 @@ export default function App() {
           setCustomTemplates(mappedTpls);
         }
 
+        const resolvedThemes = [...mappedTpls, ...THEMES];
+        const matchedInvTheme = resolvedThemes.find((t) => t.id === dbInv.theme_id) || THEMES[0];
+
         setInvitation((prev) => ({
           ...prev,
+          theme: matchedInvTheme,
           layout: dbInv.layout_settings ? JSON.parse(dbInv.layout_settings) : prev.layout,
           graduate: {
             ...prev.graduate,
-            fullName: dbInv.full_name || prev.graduate.fullName,
-            nickname: dbInv.nickname || prev.graduate.nickname,
-            degree: dbInv.degree || prev.graduate.degree,
-            honor: dbInv.honor || prev.graduate.honor,
-            school: dbInv.school || prev.graduate.school,
-            faculty: dbInv.faculty || prev.graduate.faculty,
-            classBatch: dbInv.class_batch || prev.graduate.classBatch,
-            avatarUrl: dbInv.avatar_url || prev.graduate.avatarUrl,
-            quote: dbInv.quote || prev.graduate.quote,
-            spotifySong: dbInv.spotify_song || prev.graduate.spotifySong,
+            fullName: dbInv.full_name ?? '',
+            nickname: dbInv.nickname ?? '',
+            degree: dbInv.degree ?? '',
+            honor: dbInv.honor ?? '',
+            school: dbInv.school ?? '',
+            faculty: dbInv.faculty ?? '',
+            classBatch: dbInv.class_batch ?? '',
+            avatarUrl: dbInv.avatar_url ?? prev.graduate.avatarUrl,
+            quote: dbInv.quote ?? '',
+            spotifySong: dbInv.spotify_song ?? '',
           },
           ceremony: {
             ...prev.ceremony,
-            date: dbInv.ceremony_date || prev.ceremony.date,
-            time: dbInv.ceremony_time || prev.ceremony.time,
-            endExpected: dbInv.end_expected || prev.ceremony.endExpected,
-            venueName: dbInv.venue_name || prev.ceremony.venueName,
-            address: dbInv.address || prev.ceremony.address,
-            mapQuery: dbInv.map_query || prev.ceremony.mapQuery,
-            dressCode: dbInv.dress_code || prev.ceremony.dressCode,
+            date: dbInv.ceremony_date ?? prev.ceremony.date,
+            time: dbInv.ceremony_time ?? prev.ceremony.time,
+            endExpected: dbInv.end_expected ?? '',
+            venueName: dbInv.venue_name ?? '',
+            address: dbInv.address ?? '',
+            mapQuery: dbInv.map_query ?? '',
+            dressCode: dbInv.dress_code ?? '',
             timeline:
-              data.timeline?.length > 0
+              Array.isArray(data.timeline)
                 ? data.timeline.map((t) => ({ time: t.time, title: t.title, desc: t.description }))
                 : prev.ceremony.timeline,
           },
+          gallery:
+            Array.isArray(data.gallery) && data.gallery.length > 0
+              ? data.gallery.map((p) => ({ id: p.id, title: p.title, url: p.photo_url || p.url }))
+              : prev.gallery,
           guests: Array.isArray(data.guests)
             ? data.guests.map((g) => ({
                 id: g.id,
@@ -692,12 +706,13 @@ export default function App() {
     verifyAuthToken().then((valid) => setIsAuthenticated(valid));
   }, [currentRoute.type]);
 
-  // Sync state to localStorage (không lưu wishes vào localStorage để bảo mật)
+  // Sync state to localStorage sau khi đã tải xong DB (không ghi đè trước khi DB phản hồi)
   useEffect(() => {
+    if (!invitationLoaded) return;
     try {
       localStorage.setItem('grad_invite_data', JSON.stringify({ ...invitation, wishes: [] }));
     } catch {}
-  }, [invitation]);
+  }, [invitation, invitationLoaded]);
 
   useEffect(() => {
     try {

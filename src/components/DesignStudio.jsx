@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   User,
@@ -223,7 +223,7 @@ export default function DesignStudio({
     setCurrentGuest((prev) => (prev ? { ...prev, ...payload } : prev));
 
     const res = await updateGuestInApi({ id: currentGuest.id, ...payload });
-    await updateInvitationToApi(invitation);
+    await updateInvitationToApi({ ...invitation, theme });
     setIsSaving(false);
 
     if (res?.success) {
@@ -253,7 +253,7 @@ export default function DesignStudio({
       invitationId: 'minh-dhbk-2026',
       ...payload
     });
-    await updateInvitationToApi(invitation);
+    await updateInvitationToApi({ ...invitation, theme });
     setIsSaving(false);
 
     if (res?.success) {
@@ -263,12 +263,12 @@ export default function DesignStudio({
     }
   };
 
-  // Hàm lưu toàn bộ thay đổi (Text, Thời gian, Địa điểm, Ảnh, Bố cục) vào SQLite Database
+  // Hàm lưu toàn bộ thay đổi (Text, Thời gian, Địa điểm, Ảnh, Bố cục) vào Database
   const handleSaveAllChanges = async () => {
     setIsSaving(true);
     setSaveStatus(null);
     try {
-      const res = await updateInvitationToApi(invitation);
+      const res = await updateInvitationToApi({ ...invitation, theme });
       if (res?.success) {
         setSaveStatus('saved');
         setSaveMessage('Đã lưu toàn bộ thay đổi text & ảnh vào Database!');
@@ -280,20 +280,30 @@ export default function DesignStudio({
       }
     } catch {
       setSaveStatus('error');
-      setSaveMessage('Lỗi kết nối máy chủ SQLite');
+      setSaveMessage('Lỗi kết nối máy chủ Database');
       setTimeout(() => setSaveStatus(null), 3500);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Tự động lưu sau 2.5 giây khi người dùng dừng gõ chữ hoặc điều chỉnh bố cục (Debounced Auto-save)
+  // Tự động lưu sau 2.5 giây khi người dùng chỉnh sửa (bỏ qua lần mount đầu tiên)
+  const hasMountedAutoSaveRef = useRef(false);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      updateInvitationToApi(invitation);
+    if (!hasMountedAutoSaveRef.current) {
+      hasMountedAutoSaveRef.current = true;
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const res = await updateInvitationToApi({ ...invitation, theme });
+      if (res && !res.success && !res.offline) {
+        setSaveStatus('error');
+        setSaveMessage(res.error || 'Chưa lưu được lên Database (hãy kiểm tra đăng nhập Admin)');
+        setTimeout(() => setSaveStatus(null), 4000);
+      }
     }, 2500);
     return () => clearTimeout(timer);
-  }, [invitation]);
+  }, [invitation, theme]);
 
   // Compress uploaded image in browser so Data URL stays lightweight for Cloud Firestore
   const compressImageFile = (file, maxDim = 900, quality = 0.82) =>
