@@ -17,7 +17,9 @@ export default function CountdownTimer({
 
   useEffect(() => {
     const calculateTimeLeft = () => {
-      const target = new Date(`${targetDate}T${targetTime}:00`);
+      // Cố định múi giờ Việt Nam (+07:00) để khách ở nước ngoài thấy đúng giờ làm lễ
+      const normalizedTime = targetTime.length === 5 ? `${targetTime}:00` : targetTime;
+      const target = new Date(`${targetDate}T${normalizedTime}+07:00`);
       const now = new Date();
       const difference = target - now;
 
@@ -48,12 +50,12 @@ export default function CountdownTimer({
   ];
 
   const dividerClass = isDarkMode ? 'divide-white/10 border-white/10' : 'divide-stone-200 border-stone-200';
-  const labelClass = isDarkMode ? 'text-stone-400' : 'text-stone-500';
-  const numClass = isDarkMode ? 'text-stone-100' : 'text-stone-900';
+  const labelClass = isDarkMode ? 'text-stone-300' : 'text-stone-600';
+  const numClass = isDarkMode ? 'text-stone-50' : 'text-stone-900';
 
   if (timeLeft.isOver) {
     return (
-      <div className={`py-3 text-center text-xs uppercase tracking-[0.2em] font-medium ${labelClass}`}>
+      <div className={`py-3 text-center text-sm font-medium ${labelClass}`}>
         Buổi lễ đã chính thức diễn ra
       </div>
     );
@@ -63,7 +65,7 @@ export default function CountdownTimer({
     <div className="w-full text-center">
       {showLabel && (
         <p
-          className="mb-4 text-[11px] uppercase tracking-[0.22em] font-semibold"
+          className="mb-4 text-xs sm:text-sm uppercase tracking-[0.12em] font-semibold"
           style={{ color: accentColor }}
         >
           Đếm ngược đến ngày lễ
@@ -74,11 +76,11 @@ export default function CountdownTimer({
         {items.map((item) => (
           <div key={item.label} className="flex flex-col items-center justify-center px-2">
             <span
-              className={`text-2xl sm:text-3xl font-semibold tracking-tight font-editorial tabular-nums ${numClass}`}
+              className={`text-3xl sm:text-4xl font-bold tracking-tight font-editorial tabular-nums ${numClass}`}
             >
               {String(item.value).padStart(2, '0')}
             </span>
-            <span className={`text-[10px] uppercase tracking-[0.18em] mt-1 font-medium ${labelClass}`}>
+            <span className={`text-xs uppercase tracking-[0.08em] mt-1.5 font-medium ${labelClass}`}>
               {item.label}
             </span>
           </div>

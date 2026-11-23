@@ -5,7 +5,11 @@
       "destination": "/api/index?route=$1"
     },
     {
-      "source": "/((?!api/|uploads/|assets/|favicon\\.svg|icons\\.svg).*)",
+      "source": "/admin",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin/(.*)",
       "destination": "/index.html"
     }
   ]

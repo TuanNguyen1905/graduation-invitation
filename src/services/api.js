@@ -79,34 +79,53 @@ export async function verifyAuthToken() {
 
 export async function checkServerHealth() {
   try {
-    const res = await fetch(`${API_BASE}/invitation?id=minh-dhbk-2026`, { method: 'GET' });
+    const res = await fetch(`${API_BASE}/invitation`, { method: 'GET' });
     return res.ok;
   } catch {
     return false;
   }
 }
 
-export async function fetchInvitationFromApi(id = 'minh-dhbk-2026') {
+export async function fetchInvitationFromApi() {
   try {
     const token = getAuthToken();
-    const res = await fetch(`${API_BASE}/invitation?id=${id}`, {
+    const res = await fetch(`${API_BASE}/invitation`, {
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
     });
     if (!res.ok) throw new Error('Failed to fetch invitation');
     const data = await res.json();
     return data;
   } catch (err) {
-    console.warn('[API] Could not connect to SQLite backend, using local state:', err.message);
+    console.warn('[API] Could not connect to backend, using local state:', err.message);
     return null;
   }
 }
 
-export async function sendRsvpToApi(guestId, status, guestCount = 1, note = '') {
+export async function fetchGuestInvitationFromApi(inviteCode) {
+  const code = String(inviteCode || '').trim();
+  if (!code) return { found: false, status: 400, error: 'Thiếu mã thiệp mời' };
+
+  try {
+    const res = await fetch(`${API_BASE}/invitation?invite=${encodeURIComponent(code)}`);
+    const data = await res.json();
+    if (res.status === 404) {
+      return { found: false, status: 404, error: data.error || 'Không tìm thấy thiệp mời với mã này.' };
+    }
+    if (!res.ok) {
+      return { found: false, status: res.status, error: data.error || 'Không thể tải thiệp mời.' };
+    }
+    return { found: true, status: 200, data };
+  } catch (err) {
+    return { found: false, status: 0, error: 'Không thể kết nối máy chủ.' };
+  }
+}
+
+export async function sendRsvpToApi(guestId, status, guestCount = 1, note = '', inviteCode = '') {
   try {
     const res = await fetch(`${API_BASE}/rsvp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ guestId, status, guestCount, note }),
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ guestId, inviteCode, status, guestCount, note }),
     });
     return await res.json();
   } catch (err) {

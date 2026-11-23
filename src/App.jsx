@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import {
   fetchInvitationFromApi,
+  fetchGuestInvitationFromApi,
   sendRsvpToApi,
   sendWishToApi,
   saveCustomTemplateToApi,
@@ -37,27 +38,22 @@ import {
 
 // ============================================================
 //  ROUTE DETECTION & SPA ROUTING
-//  - ?invite=... hoặc ?code=...  → Guest Portal (public)
-//  - /admin hoặc #/admin         → Admin Dashboard / Login (cần đăng nhập)
-//  - Mọi trường hợp còn lại (/)  → Landing Page Công Khai (public)
+//  - /?invite=... hoặc /?code=... → Guest Portal (public, xác thực mã ở server)
+//  - /admin hoặc #/admin          → Admin Dashboard / Login (cần đăng nhập)
+//  - /                            → Landing Page Công Khai (public)
+//  - Đường dẫn khác (/abc...)     → 404 Not Found
 // ============================================================
 function detectRoute() {
   const params = new URLSearchParams(window.location.search);
-  const inviteParam = params.get('invite') || params.get('code');
-  const guestParam = params.get('guest');
-
-  // 1. Guest portal
-  if (inviteParam || guestParam) {
-    return { type: 'guest', inviteParam, guestParam };
-  }
-
-  // 2. Admin endpoint
+  const inviteParam = (params.get('invite') || params.get('code') || '').trim();
   const pathname = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
   const pageParam = params.get('page');
 
+  // 1. Admin endpoint
   if (
-    pathname.startsWith('/admin') ||
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/') ||
     hash.startsWith('#/admin') ||
     hash.startsWith('#admin') ||
     pageParam === 'admin'
@@ -65,7 +61,17 @@ function detectRoute() {
     return { type: 'admin' };
   }
 
-  // 3. Default: Landing page
+  // 2. Reject unknown paths with 404 screen
+  if (pathname !== '/' && pathname !== '/index.html') {
+    return { type: 'not-found', pathname: window.location.pathname };
+  }
+
+  // 3. Guest portal (only by invite code — never by guessing guest name)
+  if (inviteParam) {
+    return { type: 'guest', inviteParam };
+  }
+
+  // 4. Default: Landing page
   return { type: 'landing' };
 }
 
@@ -97,90 +103,172 @@ function resolveGuestTheme(guest, allThemesList = THEMES) {
 }
 
 // ============================================================
-//  GUEST PORTAL (Public — xem thiệp mời cá nhân hóa)
+//  GUEST PORTAL (Public — xác thực đúng 1 mã thiệp qua server)
 // ============================================================
-function GuestPortal({ invitation, allThemes = THEMES, onAddWish, onUpdateGuestRsvp, onNavigateToHome }) {
-  const params = new URLSearchParams(window.location.search);
-  const inviteParam = params.get('invite') || params.get('code');
-  const guestParam = params.get('guest');
-
+function GuestPortal({
+  inviteCode,
+  invitation,
+  allThemes = THEMES,
+  onAddWish,
+  onUpdateGuestRsvp,
+  onNavigateToHome,
+  onOpenGuestInvite
+}) {
   const [currentGuest, setCurrentGuest] = useState(null);
+  const [guestStatus, setGuestStatus] = useState('loading'); // 'loading' | 'found' | 'not-found'
+  const [retryCode, setRetryCode] = useState('');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!invitation) return;
-    let matched = null;
+    let cancelled = false;
+    setGuestStatus('loading');
+    setCurrentGuest(null);
 
-    if (inviteParam) {
-      matched = invitation.guests.find(
-        (g) =>
-          (g.inviteCode && g.inviteCode.toUpperCase() === inviteParam.toUpperCase()) ||
-          (g.id && g.id.toLowerCase() === inviteParam.toLowerCase())
-      );
-    }
-    if (!matched && guestParam) {
-      matched = invitation.guests.find(
-        (g) => g.name.toLowerCase() === guestParam.toLowerCase()
-      );
-    }
+    fetchGuestInvitationFromApi(inviteCode).then((result) => {
+      if (cancelled) return;
+      const g = result?.data?.guest || result?.data?.guests?.[0];
+      if (result?.found && g) {
+        setCurrentGuest({
+          id: g.id,
+          inviteCode: g.invite_code || inviteCode,
+          name: g.name,
+          salutation: g.salutation,
+          relationship: g.relationship,
+          gender: g.gender || 'unisex',
+          persona: g.persona || 'energetic',
+          themeId: g.template_id || 'genz-ocean-blue',
+          themeMode: g.theme_mode || 'light',
+          customTheme: g.custom_theme_config ? JSON.parse(g.custom_theme_config) : null,
+          customNote: g.custom_note,
+          rsvpStatus: g.rsvp_status || 'pending',
+          guestCount: g.guest_count || 1
+        });
+        setGuestStatus('found');
+      } else {
+        setGuestStatus('not-found');
+      }
+    });
 
-    if (matched) {
-      setCurrentGuest(matched);
-    } else {
-      const fallbackName = guestParam || `Khách Mời (${inviteParam})`;
-      setCurrentGuest({
-        id: `guest-custom-${Date.now()}`,
-        inviteCode: inviteParam || `INV-${Date.now().toString().slice(-6)}`,
-        name: fallbackName,
-        salutation: 'Trân trọng kính mời',
-        relationship: 'Khách quý',
-        customNote: 'Sự hiện diện của bạn là niềm vinh hạnh to lớn!',
-        rsvpStatus: 'pending',
-        guestCount: 1,
-        themeMode: 'light',
-      });
-    }
-  }, [invitation, inviteParam, guestParam]);
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteCode]);
 
   // Derive theme for this guest (hỗ trợ customTheme, template, và chế độ Sáng/Tối)
-  const guestTheme = invitation
+  const guestTheme = currentGuest
     ? resolveGuestTheme(currentGuest, allThemes)
     : THEMES[0];
   const isGuestDarkMode = guestTheme?.mode === 'dark';
 
-  if (!invitation || !currentGuest) {
+  if (guestStatus === 'loading' || !invitation) {
     return (
-      <div className="min-h-screen bg-[#f1ede6] flex items-center justify-center p-6">
-        <div className="text-stone-600 text-xs uppercase tracking-[0.2em] font-medium">
+      <div
+        className="min-h-screen flex items-center justify-center p-6 text-slate-900 font-sans"
+        style={{
+          backgroundColor: '#f3f5f9',
+          backgroundImage: 'radial-gradient(ellipse at 50% 0%, #1e3a5f18 0%, transparent 65%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)'
+        }}
+      >
+        <div className="text-slate-600 text-xs uppercase tracking-[0.16em] font-semibold bg-white/80 backdrop-blur-md px-5 py-2.5 rounded-full border border-slate-200 shadow-sm">
           Đang mở thiệp mời...
         </div>
       </div>
     );
   }
 
+  if (guestStatus === 'not-found' || !currentGuest) {
+    return (
+      <div
+        className="min-h-screen text-slate-900 flex items-center justify-center p-5 font-sans"
+        style={{
+          backgroundColor: '#f3f5f9',
+          backgroundImage: 'radial-gradient(ellipse at 50% 0%, #1e3a5f18 0%, transparent 65%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)'
+        }}
+      >
+        <div className="w-full max-w-md bg-white border border-slate-200/90 rounded-2xl p-8 sm:p-10 text-center space-y-5 shadow-[0_25px_70px_-12px_rgba(15,23,42,0.18),0_10px_25px_-5px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/[0.06]">
+          <p className="text-[11px] uppercase tracking-[0.24em] font-semibold text-[#1e3a5f]">
+            404 · Mã Thiệp Không Hợp Lệ
+          </p>
+          <h1 className="text-2xl font-editorial font-semibold text-stone-900">
+            Không tìm thấy thiệp mời
+          </h1>
+          <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
+            Mã thiệp <span className="font-mono font-semibold text-stone-800">{inviteCode}</span> không tồn tại hoặc đã bị thu hồi. Vui lòng kiểm tra lại đúng mã thiệp bạn nhận được.
+          </p>
+
+          {onOpenGuestInvite && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (retryCode.trim()) onOpenGuestInvite(retryCode.trim());
+              }}
+              className="flex flex-col sm:flex-row gap-2 pt-2"
+            >
+              <input
+                type="text"
+                value={retryCode}
+                onChange={(e) => setRetryCode(e.target.value)}
+                placeholder="Nhập lại mã thiệp (VD: INV-...)"
+                className="flex-1 px-3.5 py-2.5 rounded-lg bg-white border border-stone-300 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-stone-600"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2.5 rounded-lg bg-[#1e3a5f] hover:bg-[#172e4c] text-white text-xs uppercase tracking-[0.14em] font-semibold cursor-pointer"
+              >
+                Mở lại
+              </button>
+            </form>
+          )}
+
+          {onNavigateToHome && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={onNavigateToHome}
+                className="text-xs font-medium text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer"
+              >
+                Quay về trang chủ sự kiện
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const guestAccent = guestTheme?.accentColor || '#1e3a5f';
+  const guestSecondary = guestTheme?.secondaryColor || guestAccent;
+
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans selection:bg-stone-200 selection:text-stone-900 ${
-        isGuestDarkMode ? 'bg-[#0e1014]' : 'bg-[#f1ede6]'
+      className={`min-h-screen flex flex-col font-sans selection:bg-slate-200 selection:text-slate-900 ${
+        isGuestDarkMode ? 'bg-[#0e1014]' : 'bg-white'
       }`}
+      style={
+        isGuestDarkMode
+          ? undefined
+          : {
+              backgroundImage: `linear-gradient(180deg, ${guestAccent}14 0%, #ffffff 34%, ${guestSecondary}10 100%)`
+            }
+      }
     >
       {/* Minimal Return Bar */}
       {onNavigateToHome && (
         <header
-          className={`px-4 pt-3 text-xs flex items-center justify-between max-w-xl w-full mx-auto ${
-            isGuestDarkMode ? 'text-stone-400' : 'text-stone-500'
+          className={`px-4 pt-3 text-sm flex items-center justify-between max-w-xl w-full mx-auto ${
+            isGuestDarkMode ? 'text-stone-300' : 'text-stone-600'
           }`}
         >
           <button
             onClick={onNavigateToHome}
-            className={`text-[11px] font-medium cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
-              isGuestDarkMode ? 'hover:text-stone-200' : 'hover:text-stone-900'
+            className={`text-xs sm:text-sm font-medium cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
+              isGuestDarkMode ? 'hover:text-stone-100' : 'hover:text-stone-900'
             }`}
           >
-            <Home className="w-3.5 h-3.5" />
+            <Home className="w-4 h-4" />
             <span>Trang sự kiện</span>
           </button>
-          <span className="text-[11px] truncate max-w-[200px]">
+          <span className="text-xs sm:text-sm font-medium truncate max-w-[200px]">
             {currentGuest.name}
           </span>
         </header>
@@ -193,7 +281,9 @@ function GuestPortal({ invitation, allThemes = THEMES, onAddWish, onUpdateGuestR
           currentGuest={currentGuest}
           theme={guestTheme}
           onOpenExportModal={() => setIsExportModalOpen(true)}
-          onUpdateGuestRsvp={(id, status, count) => onUpdateGuestRsvp(id, status, count)}
+          onUpdateGuestRsvp={(id, status, count) =>
+            onUpdateGuestRsvp(id, status, count, currentGuest.inviteCode)
+          }
           onAddWish={onAddWish}
         />
       </main>
@@ -259,7 +349,7 @@ function AdminPanel({
 
   // Check DB connection status
   useEffect(() => {
-    fetchInvitationFromApi('minh-dhbk-2026').then((data) => {
+    fetchInvitationFromApi().then((data) => {
       if (data?.invitation) setIsDbConnected(true);
     });
   }, []);
@@ -598,9 +688,9 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Fetch SQLite database data on startup
+  // Fetch database data on startup
   useEffect(() => {
-    fetchInvitationFromApi('minh-dhbk-2026').then((data) => {
+    fetchInvitationFromApi().then((data) => {
       if (data?.invitation) {
         const dbInv = data.invitation;
 
@@ -745,14 +835,14 @@ export default function App() {
     });
   };
 
-  const handleUpdateGuestRsvp = (guestId, status, count) => {
+  const handleUpdateGuestRsvp = (guestId, status, count, inviteCode = '') => {
     setInvitation((prev) => ({
       ...prev,
       guests: prev.guests.map((g) =>
         g.id === guestId ? { ...g, rsvpStatus: status, guestCount: count } : g
       ),
     }));
-    sendRsvpToApi(guestId, status, count);
+    sendRsvpToApi(guestId, status, count, '', inviteCode);
   };
 
   // Navigation helpers
@@ -775,15 +865,43 @@ export default function App() {
   //  VIEW RENDERING
   // ============================================================
 
-  // 1. GUEST PORTAL ROUTE (Public — không truyền lưu bút của người khác)
+  // 0. 404 NOT FOUND ROUTE
+  if (currentRoute.type === 'not-found') {
+    return (
+      <div className="min-h-screen bg-white text-slate-900 flex items-center justify-center p-5 font-sans">
+        <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl p-8 sm:p-10 text-center space-y-5 shadow-[0_16px_44px_-16px_rgba(15,23,42,0.1)]">
+          <p className="text-[11px] uppercase tracking-[0.24em] font-semibold text-[#1e3a5f]">
+            404 · Không Tìm Thấy Trang
+          </p>
+          <h1 className="text-2xl font-editorial font-semibold text-stone-900">
+            Đường dẫn không tồn tại
+          </h1>
+          <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
+            Trang <span className="font-mono text-stone-800">{currentRoute.pathname}</span> không có trên hệ thống.
+          </p>
+          <button
+            type="button"
+            onClick={handleNavigateToHome}
+            className="px-5 py-2.5 rounded-lg bg-[#1e3a5f] hover:bg-[#172e4c] text-white text-xs uppercase tracking-[0.14em] font-semibold cursor-pointer"
+          >
+            Về trang chủ sự kiện
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 1. GUEST PORTAL ROUTE (Public — xác thực đúng 1 mã thiệp qua API)
   if (currentRoute.type === 'guest') {
     return (
       <GuestPortal
-        invitation={invitationLoaded ? { ...invitation, wishes: [] } : null}
+        inviteCode={currentRoute.inviteParam}
+        invitation={invitationLoaded ? { ...invitation, guests: [], wishes: [] } : null}
         allThemes={allThemes}
         onAddWish={handleAddWish}
         onUpdateGuestRsvp={handleUpdateGuestRsvp}
         onNavigateToHome={handleNavigateToHome}
+        onOpenGuestInvite={handleOpenGuestInvite}
       />
     );
   }

@@ -847,7 +847,7 @@ export default function DesignStudio({
                     type="text"
                     value={graduate.nickname || ''}
                     onChange={(e) => handleUpdateGraduate('nickname', e.target.value)}
-                    placeholder="VD: Minh Minzy, Bảo Bảo..."
+                    placeholder="VD: Tuna Nguyễn..."
                     className="w-full px-3.5 py-2 rounded-xl bg-sky-50/40 border border-sky-200 text-slate-900 focus:outline-none focus:border-sky-500 font-semibold"
                   />
                 </div>

@@ -13,7 +13,7 @@ export const DEFAULT_LAYOUT_SETTINGS = {
     { id: 'hero', label: 'Lời mời & Chân dung Cử nhân', enabled: true, iconName: 'User', desc: 'Tên trường, lời mời đích danh và chân dung cử nhân' },
     { id: 'countdown', label: 'Đồng hồ đếm ngược', enabled: true, iconName: 'Clock', desc: 'Bộ đếm thời gian tới giờ làm lễ' },
     { id: 'venue', label: 'Thời gian & Địa điểm (Maps)', enabled: true, iconName: 'MapPin', desc: 'Thông tin địa điểm, bản đồ & thêm lịch' },
-    { id: 'timeline', label: 'Lịch trình chi tiết', enabled: false, iconName: 'Calendar', desc: 'Từng mốc giờ đón khách & nhận bằng' },
+    { id: 'timeline', label: 'Lịch trình chi tiết', enabled: true, iconName: 'Calendar', desc: 'Từng mốc giờ đón khách & nhận bằng' },
     { id: 'gallery', label: 'Kỷ niệm thanh xuân (Album ảnh)', enabled: false, iconName: 'Camera', desc: 'Bộ sưu tập ảnh kỷ yếu & lightbox' },
     { id: 'rsvp', label: 'Xác nhận tham dự (RSVP)', enabled: true, iconName: 'CheckCircle2', desc: 'Form xác nhận tham dự & số người' },
     { id: 'guestbook', label: 'Sổ lưu bút & Lời chúc', enabled: true, iconName: 'MessageSquare', desc: 'Gửi lời chúc riêng tư tới tân cử nhân' }
@@ -21,10 +21,10 @@ export const DEFAULT_LAYOUT_SETTINGS = {
 };
 
 export const DEFAULT_TIMELINE = [
-  { id: 'step-1', step_order: 1, time: '07:30', title: 'Check-in & Chụp ảnh sống ảo', description: 'Nhận hoa, bắt đền thanh xuân và chụp ảnh cháy máy cùng tân cử nhân.' },
-  { id: 'step-2', step_order: 2, time: '08:30', title: 'Khai mạc Lễ Trao Bằng', description: 'Nghi thức vinh danh chính thức, lắng nghe diễn văn và nhận bằng.' },
-  { id: 'step-3', step_order: 3, time: '09:30', title: 'Khoảnh khắc Lên Bục Vinh Danh', description: 'Thời khắc nhận bằng cử nhân và bắt tay thầy Hiệu trưởng.' },
-  { id: 'step-4', step_order: 4, time: '11:00', title: 'Ném mũ tốt nghiệp & After Party', description: 'Ném mũ cử nhân tại sân trường & tụ tập ăn mừng xả láng.' }
+  { id: 'step-1', step_order: 1, time: '08:45', title: 'Đón khách & Chụp ảnh kỷ niệm', description: 'Đón tiếp gia đình, bạn bè và lưu giữ khoảnh khắc trước giờ làm lễ.' },
+  { id: 'step-2', step_order: 2, time: '09:00', title: 'Khai mạc Lễ Trao Bằng', description: 'Nghi thức khai mạc và diễn văn chúc mừng tân cử nhân.' },
+  { id: 'step-3', step_order: 3, time: '09:45', title: 'Nghi thức Trao Bằng Cử Nhân', description: 'Khoảnh khắc lên bục nhận tấm bằng cử nhân tốt nghiệp.' },
+  { id: 'step-4', step_order: 4, time: '11:00', title: 'Chụp ảnh tập thể & Kết thúc buổi lễ', description: 'Chụp ảnh lưu niệm cùng người thân, bạn bè tại khuôn viên trường.' }
 ];
 
 export const DEFAULT_GALLERY = [

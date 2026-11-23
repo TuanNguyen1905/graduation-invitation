@@ -46,7 +46,7 @@ export function generateGraduationEmailHtml({
   graduate = {},
   ceremony = {},
 }) {
-  const graduateName = graduate.fullName || 'Nguyễn Hoàng Minh';
+  const graduateName = graduate.fullName || 'Nguyễn Đình Tuấn';
   const graduateTitle = graduate.degree || 'Cử Nhân Công Nghệ Thông Tin';
   const school = graduate.school || 'Đại Học Bách Khoa';
   const faculty = graduate.faculty || '';

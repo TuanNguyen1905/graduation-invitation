@@ -57,24 +57,29 @@ export default function ShareModal({
   const guestUrl = getGuestInvitationUrl(guest);
 
   // Formatted invitation message for Social
-  const invitationMessage = `🎓 THƯ MỜI LỄ TỐT NGHIỆP CỬ NHÂN\n\n${salutation} ${guestName}!\n\nMinh trân trọng kính mời bạn/gia đình đến tham dự buổi Lễ Trao Bằng Tốt Nghiệp Cử Nhân của mình:\n\n⏰ Thời gian: ${ceremony.time} - Ngày ${ceremony.date}\n📍 Địa điểm: ${ceremony.venueName} (${ceremony.address})\n\n💌 Xem thiệp mời tương tác, sơ đồ chỉ đường và gửi lời chúc mừng tại đây nhé:\n👉 ${guestUrl}\n\nRất mong được đón tiếp bạn trong ngày vui trọng đại này! ✨`;
+  const hostDisplayName = graduate?.fullName || 'Nguyễn Đình Tuấn';
+  const invitationMessage = `THƯ MỜI LỄ TỐT NGHIỆP CỬ NHÂN\n\n${salutation} ${guestName},\n\n${hostDisplayName} trân trọng kính mời bạn/gia đình đến tham dự buổi Lễ Trao Bằng Tốt Nghiệp Cử Nhân:\n\nThời gian: ${ceremony.time}${ceremony.endExpected ? ` – ${ceremony.endExpected}` : ''}, ngày ${ceremony.date}\nĐịa điểm: ${ceremony.venueName} (${ceremony.address})\n\nXem thiệp mời cá nhân hóa, bản đồ chỉ đường và xác nhận tham dự tại:\n${guestUrl}\n\nRất mong được đón tiếp bạn trong ngày vui này.`;
 
   // Initialize QR & Email target when modal opens
   useEffect(() => {
     if (isOpen && guest) {
       setTargetEmail(guest.email || '');
-      setEmailSubject(`🎓 Thư Mời Lễ Tốt Nghiệp Cử Nhân - ${graduate?.fullName || 'Nguyễn Hoàng Minh'}`);
+      setEmailSubject(`Thư Mời Lễ Tốt Nghiệp Cử Nhân - ${graduate?.fullName || 'Nguyễn Đình Tuấn'}`);
       setEmailResult(null);
 
-      // Load saved Aliyun SMTP credentials from localStorage
+      // Chỉ tải host/port/user (KHÔNG lưu hoặc đọc mật khẩu SMTP từ localStorage)
       try {
         const saved = localStorage.getItem('grad_aliyun_smtp');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed.user) setSmtpUser(parsed.user);
-          if (parsed.pass) setSmtpPass(parsed.pass);
           if (parsed.host) setSmtpHost(parsed.host);
           if (parsed.port) setSmtpPort(parsed.port);
+          // Dọn sạch trường pass cũ nếu từng lưu trước đây
+          if (parsed.pass) {
+            const { pass: _removed, ...safeConfig } = parsed;
+            localStorage.setItem('grad_aliyun_smtp', JSON.stringify(safeConfig));
+          }
         }
       } catch (err) {
         console.warn('Failed to parse saved SMTP settings:', err);
@@ -145,8 +150,11 @@ export default function ShareModal({
     setSmtpVerifyResult(res);
 
     if (res.success) {
-      // Save valid settings to localStorage
-      localStorage.setItem('grad_aliyun_smtp', JSON.stringify(config));
+      // Chỉ lưu thông tin không nhạy cảm (host, port, user), KHÔNG lưu mật khẩu vào localStorage
+      localStorage.setItem(
+        'grad_aliyun_smtp',
+        JSON.stringify({ host: config.host, port: config.port, user: config.user })
+      );
     }
   };
 
@@ -165,12 +173,15 @@ export default function ShareModal({
       port: Number(smtpPort),
       user: smtpUser.trim(),
       pass: smtpPass.trim(),
-      fromName: `${graduate?.fullName || 'Minh'} - Lễ Tốt Nghiệp 2026`
+      fromName: `${graduate?.fullName || 'Nguyễn Đình Tuấn'} - Lễ Tốt Nghiệp 2026`
     } : null;
 
-    // Save smtp to local if provided
+    // Chỉ lưu host/port/user (không lưu mật khẩu)
     if (smtpConfig) {
-      localStorage.setItem('grad_aliyun_smtp', JSON.stringify(smtpConfig));
+      localStorage.setItem(
+        'grad_aliyun_smtp',
+        JSON.stringify({ host: smtpConfig.host, port: smtpConfig.port, user: smtpConfig.user })
+      );
     }
 
     const payload = {
@@ -419,7 +430,7 @@ export default function ShareModal({
                           type="email"
                           value={smtpUser}
                           onChange={(e) => setSmtpUser(e.target.value)}
-                          placeholder="minhnv@yourdomain.com"
+                          placeholder="contact@yourdomain.com"
                           className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs focus:outline-none focus:border-sky-500"
                         />
                       </div>
