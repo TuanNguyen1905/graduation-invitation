@@ -1,18 +1,15 @@
 export const DEFAULT_LAYOUT = {
   avatarStyle: 'circle', // 'circle' | 'polaroid' | 'banner'
-  cardRoundness: 'rounded-3xl', // 'rounded-xl' | 'rounded-3xl' | 'rounded-none'
+  cardRoundness: 'rounded-xl', // 'rounded-xl' | 'rounded-3xl' | 'rounded-none'
   alignment: 'center', // 'center' | 'left'
   sections: [
-    { id: 'music', label: 'Trình phát nhạc Spotify', enabled: true, iconName: 'Headphones', desc: 'Thanh phát nhạc & sóng equalizer' },
-    { id: 'school', label: 'Huy hiệu Trường & Khoa', enabled: true, iconName: 'GraduationCap', desc: 'Tên trường, khoa và niên khóa' },
-    { id: 'hero', label: 'Lời mời & Chân dung Cử nhân', enabled: true, iconName: 'User', desc: 'Ảnh chân dung, lời nhắn gửi đích danh' },
-    { id: 'reactions', label: 'Thanh thả cảm xúc Gen Z', enabled: true, iconName: 'Heart', desc: 'Nút thả tim, thả lửa, bắn pháo hoa' },
+    { id: 'hero', label: 'Lời mời & Chân dung Cử nhân', enabled: true, iconName: 'User', desc: 'Tên trường, lời mời đích danh và chân dung cử nhân' },
     { id: 'countdown', label: 'Đồng hồ đếm ngược', enabled: true, iconName: 'Clock', desc: 'Bộ đếm thời gian tới giờ làm lễ' },
     { id: 'venue', label: 'Thời gian & Địa điểm (Maps)', enabled: true, iconName: 'MapPin', desc: 'Thông tin địa điểm, bản đồ & thêm lịch' },
-    { id: 'timeline', label: 'Lịch trình chi tiết', enabled: true, iconName: 'Calendar', desc: 'Từng mốc giờ đón khách & nhận bằng' },
-    { id: 'gallery', label: 'Kỷ niệm thanh xuân (Album ảnh)', enabled: true, iconName: 'Camera', desc: 'Bộ sưu tập ảnh kỷ yếu & lightbox' },
+    { id: 'timeline', label: 'Lịch trình chi tiết', enabled: false, iconName: 'Calendar', desc: 'Từng mốc giờ đón khách & nhận bằng' },
+    { id: 'gallery', label: 'Kỷ niệm thanh xuân (Album ảnh)', enabled: false, iconName: 'Camera', desc: 'Bộ sưu tập ảnh kỷ yếu & lightbox' },
     { id: 'rsvp', label: 'Xác nhận tham dự (RSVP)', enabled: true, iconName: 'CheckCircle2', desc: 'Form xác nhận tham dự & số người' },
-    { id: 'guestbook', label: 'Sổ lưu bút & Lời chúc', enabled: true, iconName: 'MessageSquare', desc: 'Bức tường lời chúc từ bạn bè' },
+    { id: 'guestbook', label: 'Sổ lưu bút & Lời chúc', enabled: true, iconName: 'MessageSquare', desc: 'Gửi lời chúc riêng tư tới tân cử nhân' },
   ]
 };
 

@@ -168,13 +168,18 @@ export async function handleApiRequest(req, res, options = {}) {
     // Lấy Database Adapter (Firestore hoặc SQLite local)
     const dbAdapter = await getAdapter();
 
-    // 1. GET /api/invitation
+    // 1. GET /api/invitation (Public chỉ trả thông tin buổi lễ + đúng 1 khách khớp ?invite=CODE; Admin mới thấy toàn bộ)
     if (req.method === 'GET' && pathname === '/api/invitation') {
       const invId = parsedUrl.searchParams.get('id') || DEFAULT_INVITATION_ID;
+      const inviteCode = (parsedUrl.searchParams.get('invite') || parsedUrl.searchParams.get('code') || '').trim() || null;
       const isAdmin = isAuthenticated(req);
-      const bundle = await dbAdapter.getInvitationBundle(invId, isAdmin);
+
+      const bundle = await dbAdapter.getInvitationBundle(invId, { isAdmin, inviteCode });
       if (!bundle) {
         return jsonResponse(res, 404, { error: 'Không tìm thấy thiệp mời' });
+      }
+      if (bundle.notFoundGuest) {
+        return jsonResponse(res, 404, { error: 'Không tìm thấy thiệp mời với mã này', notFound: true });
       }
       return jsonResponse(res, 200, bundle);
     }
@@ -250,12 +255,32 @@ export async function handleApiRequest(req, res, options = {}) {
       });
     }
 
-    // 2. POST /api/rsvp
+    // 2. POST /api/rsvp (Bắt buộc kèm mã thiệp khớp với khách, trừ khi Admin cập nhật)
     if (req.method === 'POST' && pathname === '/api/rsvp') {
-      const { guestId, status, guestCount, note } = await parseJsonBody(req);
+      const { guestId, inviteCode, status, guestCount, note } = await parseJsonBody(req);
       if (!guestId) return jsonResponse(res, 400, { error: 'Thiếu guestId' });
 
-      await dbAdapter.updateRsvp(guestId, { status, guestCount, note });
+      const allowedStatuses = ['confirmed', 'declined', 'pending'];
+      if (!allowedStatuses.includes(status)) {
+        return jsonResponse(res, 400, { error: 'Trạng thái RSVP không hợp lệ' });
+      }
+
+      const safeCount = Math.min(10, Math.max(1, Number(guestCount) || 1));
+      const bypassCodeCheck = isAuthenticated(req);
+      const result = await dbAdapter.updateRsvp(guestId, {
+        status,
+        guestCount: safeCount,
+        note,
+        inviteCode,
+        bypassCodeCheck
+      });
+
+      if (!result?.ok) {
+        return jsonResponse(res, result?.statusCode || 403, {
+          success: false,
+          error: result?.error || 'Không thể xác nhận RSVP'
+        });
+      }
       return jsonResponse(res, 200, { success: true, message: 'Đã cập nhật RSVP thành công!' });
     }
 

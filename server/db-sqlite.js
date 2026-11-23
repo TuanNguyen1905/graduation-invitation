@@ -62,24 +62,59 @@ export async function createSqliteAdapter() {
     CREATE INDEX IF NOT EXISTS idx_templates_invitation_id ON templates(invitation_id, created_at DESC);
   `);
 
+function sanitizePublicGuest(g) {
+  return {
+    id: g.id,
+    invite_code: g.invite_code,
+    name: g.name,
+    salutation: g.salutation,
+    relationship: g.relationship,
+    gender: g.gender || 'unisex',
+    persona: g.persona || 'energetic',
+    template_id: g.template_id || 'genz-ocean-blue',
+    theme_mode: g.theme_mode || 'light',
+    custom_theme_config: g.custom_theme_config || null,
+    custom_note: g.custom_note || null,
+    rsvp_status: g.rsvp_status || 'pending',
+    guest_count: g.guest_count || 1
+  };
+}
+
   return {
     kind: 'sqlite',
     dbPath,
 
-    async getInvitationBundle(invId = DEFAULT_INVITATION_ID, includeWishes = false) {
+    async getInvitationBundle(invId = DEFAULT_INVITATION_ID, options = {}) {
+      const isAdmin = typeof options === 'boolean' ? options : Boolean(options?.isAdmin);
+      const inviteCode = typeof options === 'object' ? (options?.inviteCode || null) : null;
+
       const inv = db.prepare('SELECT * FROM invitations WHERE id = ?').get(invId);
       if (!inv) return null;
 
-      const guests = db.prepare('SELECT * FROM guests WHERE invitation_id = ? ORDER BY created_at DESC').all(invId);
       const timeline = db.prepare('SELECT * FROM ceremony_timeline WHERE invitation_id = ? ORDER BY step_order ASC').all(invId);
       const gallery = db.prepare('SELECT * FROM gallery_photos WHERE invitation_id = ? ORDER BY display_order ASC').all(invId);
-      const wishes = includeWishes
-        ? db.prepare('SELECT * FROM guestbook_wishes WHERE invitation_id = ? ORDER BY created_at DESC').all(invId)
-        : [];
       const templates = db.prepare('SELECT * FROM templates WHERE invitation_id = ? ORDER BY created_at DESC').all(invId);
-      const reactions = db.prepare('SELECT * FROM invitation_reactions WHERE invitation_id = ?').get(invId) || DEFAULT_REACTIONS;
 
-      return { invitation: inv, guests, timeline, gallery, wishes, templates, reactions };
+      let guests = [];
+      let matchedGuest = null;
+      let wishes = [];
+
+      if (isAdmin) {
+        guests = db.prepare('SELECT * FROM guests WHERE invitation_id = ? ORDER BY created_at DESC').all(invId);
+        wishes = db.prepare('SELECT * FROM guestbook_wishes WHERE invitation_id = ? ORDER BY created_at DESC').all(invId);
+      } else if (inviteCode) {
+        const normalizedCode = inviteCode.trim().toUpperCase();
+        const found = db
+          .prepare('SELECT * FROM guests WHERE invitation_id = ? AND UPPER(TRIM(invite_code)) = ? LIMIT 1')
+          .get(invId, normalizedCode);
+        if (!found) {
+          return { notFoundGuest: true };
+        }
+        matchedGuest = sanitizePublicGuest(found);
+        guests = [matchedGuest];
+      }
+
+      return { invitation: inv, guest: matchedGuest, guests, timeline, gallery, wishes, templates };
     },
 
     async updateInvitation(invId = DEFAULT_INVITATION_ID, { graduate = {}, ceremony = {}, layout = null, themeId = 'genz-holographic' }) {
@@ -148,13 +183,26 @@ export async function createSqliteAdapter() {
       }
     },
 
-    async updateRsvp(guestId, { status, guestCount = 1, note = null }) {
-      const info = db.prepare(`
+    async updateRsvp(guestId, { status, guestCount = 1, note = null, inviteCode = null, bypassCodeCheck = false }) {
+      const existing = db.prepare('SELECT id, invite_code FROM guests WHERE id = ?').get(guestId);
+      if (!existing) {
+        return { ok: false, statusCode: 404, error: 'Không tìm thấy khách mời' };
+      }
+
+      if (!bypassCodeCheck) {
+        const provided = String(inviteCode || '').trim().toUpperCase();
+        const expected = String(existing.invite_code || '').trim().toUpperCase();
+        if (!provided || !expected || provided !== expected) {
+          return { ok: false, statusCode: 403, error: 'Mã thiệp mời không hợp lệ hoặc không khớp.' };
+        }
+      }
+
+      db.prepare(`
         UPDATE guests
         SET rsvp_status = ?, guest_count = ?, rsvp_note = ?, rsvp_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(status, guestCount || 1, note || null, guestId);
-      return info.changes > 0;
+      return { ok: true };
     },
 
     async createWish({ invitationId = DEFAULT_INVITATION_ID, guestName, relationship = 'Khách mời', message, emoji = '🎓' }) {

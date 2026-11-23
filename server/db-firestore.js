@@ -86,11 +86,14 @@ function sortByCreatedDesc(items) {
   });
 }
 
-async function ensureInvitationExists(db, invId) {
+async function ensureInvitationExists(db, invId, allowAutoCreate = false) {
   const docRef = db.collection('invitations').doc(invId);
   const snap = await docRef.get();
   if (snap.exists) {
     return { docRef, data: snap.data() };
+  }
+  if (!allowAutoCreate || invId !== DEFAULT_INVITATION_ID) {
+    return null;
   }
   const initialData = {
     ...createDefaultInvitationRecord(invId),
@@ -102,41 +105,80 @@ async function ensureInvitationExists(db, invId) {
   return { docRef, data: initialData };
 }
 
+function sanitizePublicGuest(g) {
+  return {
+    id: g.id,
+    invite_code: g.invite_code,
+    name: g.name,
+    salutation: g.salutation,
+    relationship: g.relationship,
+    gender: g.gender || 'unisex',
+    persona: g.persona || 'energetic',
+    template_id: g.template_id || 'genz-ocean-blue',
+    theme_mode: g.theme_mode || 'light',
+    custom_theme_config: g.custom_theme_config || null,
+    custom_note: g.custom_note || null,
+    rsvp_status: g.rsvp_status || 'pending',
+    guest_count: g.guest_count || 1
+  };
+}
+
 export function createFirestoreAdapter() {
   const db = getDb();
 
   return {
     kind: 'firestore',
 
-    async getInvitationBundle(invId = DEFAULT_INVITATION_ID, includeWishes = false) {
-      const { data: invDoc } = await ensureInvitationExists(db, invId);
-      const { timeline = DEFAULT_TIMELINE, gallery = DEFAULT_GALLERY, reactions = DEFAULT_REACTIONS, ...inv } = invDoc;
+    async getInvitationBundle(invId = DEFAULT_INVITATION_ID, options = {}) {
+      const isAdmin = typeof options === 'boolean' ? options : Boolean(options?.isAdmin);
+      const inviteCode = typeof options === 'object' ? (options?.inviteCode || null) : null;
 
-      const guestsSnap = await db.collection('guests').where('invitation_id', '==', invId).get();
-      const guests = sortByCreatedDesc(guestsSnap.docs.map((d) => d.data()));
+      const ensured = await ensureInvitationExists(db, invId, invId === DEFAULT_INVITATION_ID);
+      if (!ensured) return null;
+      const { data: invDoc } = ensured;
+      const { timeline = DEFAULT_TIMELINE, gallery = DEFAULT_GALLERY, ...inv } = invDoc;
 
       const templatesSnap = await db.collection('templates').where('invitation_id', '==', invId).get();
       const templates = sortByCreatedDesc(templatesSnap.docs.map((d) => d.data()));
 
+      let guests = [];
+      let matchedGuest = null;
       let wishes = [];
-      if (includeWishes) {
+
+      if (isAdmin) {
+        const guestsSnap = await db.collection('guests').where('invitation_id', '==', invId).get();
+        guests = sortByCreatedDesc(guestsSnap.docs.map((d) => d.data()));
         const wishesSnap = await db.collection('guestbook_wishes').where('invitation_id', '==', invId).get();
         wishes = sortByCreatedDesc(wishesSnap.docs.map((d) => d.data()));
+      } else if (inviteCode) {
+        const normalizedCode = inviteCode.trim().toUpperCase();
+        const guestsSnap = await db.collection('guests').where('invitation_id', '==', invId).get();
+        const found = guestsSnap.docs
+          .map((d) => d.data())
+          .find((g) => g.invite_code && g.invite_code.trim().toUpperCase() === normalizedCode);
+
+        if (!found) {
+          return { notFoundGuest: true };
+        }
+        matchedGuest = sanitizePublicGuest(found);
+        guests = [matchedGuest];
       }
 
       return {
         invitation: inv,
+        guest: matchedGuest,
         guests,
         timeline: [...timeline].sort((a, b) => (a.step_order || 0) - (b.step_order || 0)),
         gallery: [...gallery].sort((a, b) => (a.display_order || 0) - (b.display_order || 0)),
         wishes,
-        templates,
-        reactions
+        templates
       };
     },
 
     async updateInvitation(invId = DEFAULT_INVITATION_ID, { graduate = {}, ceremony = {}, layout = null, themeId = 'genz-holographic' }) {
-      const { docRef, data: existing } = await ensureInvitationExists(db, invId);
+      const ensured = await ensureInvitationExists(db, invId, invId === DEFAULT_INVITATION_ID);
+      if (!ensured) return false;
+      const { docRef, data: existing } = ensured;
       const now = new Date().toISOString();
 
       const nextTimeline = Array.isArray(ceremony.timeline)
@@ -177,17 +219,27 @@ export function createFirestoreAdapter() {
       }, { merge: true });
     },
 
-    async updateRsvp(guestId, { status, guestCount = 1, note = null }) {
+    async updateRsvp(guestId, { status, guestCount = 1, note = null, inviteCode = null, bypassCodeCheck = false }) {
       const ref = db.collection('guests').doc(guestId);
       const snap = await ref.get();
-      if (!snap.exists) return false;
+      if (!snap.exists) return { ok: false, statusCode: 404, error: 'Không tìm thấy khách mời' };
+      const existing = snap.data();
+
+      if (!bypassCodeCheck) {
+        const provided = String(inviteCode || '').trim().toUpperCase();
+        const expected = String(existing.invite_code || '').trim().toUpperCase();
+        if (!provided || !expected || provided !== expected) {
+          return { ok: false, statusCode: 403, error: 'Mã thiệp mời không hợp lệ hoặc không khớp.' };
+        }
+      }
+
       await ref.update({
         rsvp_status: status,
         guest_count: guestCount || 1,
         rsvp_note: note || null,
         rsvp_at: new Date().toISOString()
       });
-      return true;
+      return { ok: true };
     },
 
     async createWish({ invitationId = DEFAULT_INVITATION_ID, guestName, relationship = 'Khách mời', message, emoji = '🎓' }) {

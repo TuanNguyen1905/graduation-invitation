@@ -1,40 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   Calendar,
-  Clock,
   MapPin,
-  ExternalLink,
   CalendarPlus,
-  Heart,
-  MessageSquare,
-  CheckCircle2,
-  XCircle,
-  Share2,
+  Check,
   Download,
-  Sparkles,
-  Compass,
-  GraduationCap,
-  Shirt,
-  Volume2,
-  VolumeX,
   Mail,
-  Camera,
   X,
-  Headphones,
-  Play,
-  Pause,
-  Flame,
-  Award,
-  Ticket,
-  User,
   Sun,
   Moon,
-  Lock
+  Lock,
+  ArrowUpRight
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import CountdownTimer from './CountdownTimer';
 import EnvelopeModal from './EnvelopeModal';
-import { createGoogleCalendarUrl, downloadIcsFile } from '../utils/calendar';
+import { createGoogleCalendarUrl } from '../utils/calendar';
 import { playCelebrationSound } from '../utils/audio';
 import { DEFAULT_LAYOUT } from '../data/mockData';
 
@@ -53,83 +33,54 @@ export default function InteractiveWebInvite({
   const [guestCount, setGuestCount] = useState(currentGuest?.guestCount || 1);
   const [rsvpSubmitted, setRsvpSubmitted] = useState(false);
 
-  // Dark / Light Mode State
+  // Dark / Light Mode State (defaults to light stationery unless theme explicitly sets dark)
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    return theme?.mode ? theme.mode !== 'light' : true;
+    return theme?.mode === 'dark';
   });
 
-  // Sync mode when theme prop changes
   useEffect(() => {
     if (theme?.mode) {
-      setIsDarkMode(theme.mode !== 'light');
+      setIsDarkMode(theme.mode === 'dark');
     }
   }, [theme?.mode]);
 
-  // New wish form state
+  useEffect(() => {
+    setRsvpStatus(currentGuest?.rsvpStatus || 'pending');
+    setGuestCount(currentGuest?.guestCount || 1);
+    setRsvpSubmitted(false);
+    setWishName(currentGuest?.name || '');
+  }, [currentGuest?.id, currentGuest?.name, currentGuest?.rsvpStatus, currentGuest?.guestCount]);
+
+  // Wish form state
   const [wishName, setWishName] = useState(currentGuest?.name || '');
   const [wishMsg, setWishMsg] = useState('');
-  const [selectedEmoji, setSelectedEmoji] = useState('🎓');
   const [mySentWishes, setMySentWishes] = useState([]);
   const [wishSentSuccess, setWishSentSuccess] = useState(false);
 
-  // Background music mock player state
-  const [isPlayingMusic, setIsPlayingMusic] = useState(false);
+  // Lightbox state
   const [selectedPhoto, setSelectedPhoto] = useState(null);
 
-  // Gen Z interactive reactions counter
-  const [reactions, setReactions] = useState({
-    heart: 142,
-    fire: 98,
-    grad: 215,
-    congrats: 116
-  });
-  const [userReacted, setUserReacted] = useState({});
-
-  const { graduate, ceremony, wishes, gallery } = invitation;
-  const layout = invitation.layout || DEFAULT_LAYOUT;
+  const { graduate = {}, ceremony = {}, wishes = [], gallery = [] } = invitation || {};
+  const layout = invitation?.layout || DEFAULT_LAYOUT;
   const sections = layout.sections || DEFAULT_LAYOUT.sections;
 
-  // Dynamic colors
-  const primaryColor = theme.accentColor || '#0284c7';
-  const secondaryColor = theme.secondaryColor || '#38bdf8';
-
-  const handleToggleMusic = () => {
-    const nextState = !isPlayingMusic;
-    setIsPlayingMusic(nextState);
-    if (nextState) {
-      playCelebrationSound();
-    }
-  };
-
-  const handleReactionClick = (key) => {
-    setReactions((prev) => ({
-      ...prev,
-      [key]: prev[key] + (userReacted[key] ? -1 : 1)
-    }));
-    setUserReacted((prev) => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-
-    try {
-      confetti({
-        particleCount: 25,
-        spread: 45,
-        origin: { y: 0.8 },
-        colors: [primaryColor, secondaryColor, '#f5d061', '#ffffff']
-      });
-    } catch {
-      // ignore
-    }
-  };
+  const accentColor = theme?.accentColor || '#1e3a5f';
+  const alignCenter = layout.alignment !== 'left';
+  const textAlign = alignCenter ? 'text-center' : 'text-left';
 
   const handleRsvpSubmit = (e) => {
     e.preventDefault();
+    const finalStatus = rsvpStatus === 'pending' ? 'confirmed' : rsvpStatus;
+    setRsvpStatus(finalStatus);
     if (onUpdateGuestRsvp && currentGuest) {
-      onUpdateGuestRsvp(currentGuest.id, rsvpStatus, guestCount);
+      onUpdateGuestRsvp(currentGuest.id, finalStatus, guestCount);
     }
     setRsvpSubmitted(true);
-    playCelebrationSound();
+    try {
+      playCelebrationSound();
+    } catch {
+      // ignore
+    }
   };
 
   const handleSendWish = (e) => {
@@ -137,10 +88,10 @@ export default function InteractiveWebInvite({
     if (!wishMsg.trim()) return;
 
     const payload = {
-      guestName: wishName || 'Người thân giấu tên',
+      guestName: wishName.trim() || 'Khách mời',
       relationship: currentGuest?.relationship || 'Khách mời',
       message: wishMsg.trim(),
-      emoji: selectedEmoji,
+      emoji: '🎓'
     };
 
     if (onAddWish) {
@@ -153,562 +104,403 @@ export default function InteractiveWebInvite({
     ]);
     setWishSentSuccess(true);
     setWishMsg('');
-    setTimeout(() => setWishSentSuccess(false), 4000);
-
-    try {
-      confetti({
-        particleCount: 40,
-        spread: 60,
-        origin: { y: 0.7 }
-      });
-    } catch {
-      // ignore
-    }
+    setTimeout(() => setWishSentSuccess(false), 4500);
   };
 
-  const calendarTitle = `Lễ Tốt Nghiệp Cử Nhân: ${graduate.fullName}`;
-  const calendarDesc = `Tham dự Lễ trao bằng tốt nghiệp cử nhân của ${graduate.fullName} - ${graduate.degree} tại ${ceremony.venueName}.\n\nThông điệp: ${graduate.quote}`;
+  const calendarTitle = `Lễ Tốt Nghiệp Cử Nhân: ${graduate.fullName || ''}`;
+  const calendarDesc = `Tham dự Lễ trao bằng tốt nghiệp của ${graduate.fullName || ''} tại ${ceremony.venueName || ''}.`;
   const googleCalUrl = createGoogleCalendarUrl({
     title: calendarTitle,
     description: calendarDesc,
-    location: `${ceremony.venueName}, ${ceremony.address}`,
+    location: `${ceremony.venueName || ''}, ${ceremony.address || ''}`,
     startDate: ceremony.date,
-    startTime: ceremony.time,
+    startTime: ceremony.time
   });
 
-  const formattedDate = new Date(ceremony.date).toLocaleDateString('vi-VN', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+  const formattedDate = ceremony.date
+    ? new Date(ceremony.date).toLocaleDateString('vi-VN', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    : '';
 
-  const isBoardingPassTheme = theme.id === 'genz-boarding-pass';
-  const textAlign = layout.alignment === 'left' ? 'text-left' : 'text-center';
-  const roundness = layout.cardRoundness || 'rounded-3xl';
+  // Editorial Fine-Stationery Palette Tokens
+  const outerBg = isDarkMode ? 'bg-[#0e1014] text-stone-100' : 'bg-[#f1ede6] text-stone-900';
+  const sheetBg = isDarkMode
+    ? 'bg-[#161920] border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.45)]'
+    : 'bg-[#fdfbf7] border-stone-300/75 shadow-[0_20px_60px_-20px_rgba(28,25,23,0.12)]';
+  const hairline = isDarkMode ? 'border-white/10' : 'border-stone-200/90';
+  const headingColor = isDarkMode ? 'text-stone-50' : 'text-stone-900';
+  const bodyColor = isDarkMode ? 'text-stone-300' : 'text-stone-600';
+  const mutedColor = isDarkMode ? 'text-stone-400' : 'text-stone-500';
+  const subtleSurface = isDarkMode
+    ? 'bg-white/[0.03] border-white/10'
+    : 'bg-[#f6f3ec]/70 border-stone-200/80';
+  const inputStyle = isDarkMode
+    ? 'bg-[#101218] border-white/15 text-stone-100 placeholder:text-stone-500 focus:border-stone-400'
+    : 'bg-white border-stone-300/80 text-stone-900 placeholder:text-stone-400 focus:border-stone-600';
 
-  // Dynamic Theme & Mode Styles
-  const pageBgClass = isDarkMode
-    ? `bg-gradient-to-b ${theme.background || 'from-slate-950 via-slate-900 to-slate-950'} text-slate-100`
-    : 'bg-gradient-to-b from-slate-50 via-sky-50/40 to-slate-100 text-slate-800';
-
-  const cardBgClass = isDarkMode
-    ? (theme.cardBg || 'bg-slate-900/90 text-slate-100 border-white/10 shadow-2xl backdrop-blur-xl')
-    : 'bg-white/95 text-slate-800 border-slate-200 shadow-xl shadow-sky-500/5 backdrop-blur-xl';
-
-  const cardBorderClass = isDarkMode ? (theme.borderClass || 'border-white/10') : 'border-slate-200';
-  const subCardBg = isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200/90 text-slate-800';
-  const subText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
-  const headingText = isDarkMode ? 'text-white' : 'text-slate-900';
-  const inputBg = isDarkMode
-    ? 'bg-white/10 border-white/15 text-white placeholder:text-slate-400'
-    : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400';
-
-  const primaryBtnStyle = {
-    background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`,
-    color: '#ffffff',
-    boxShadow: `0 8px 25px ${primaryColor}40`
+  const isSectionEnabled = (id) => {
+    const found = sections.find((s) => s.id === id);
+    return found ? Boolean(found.enabled) : false;
   };
 
-  /* --- INDIVIDUAL MODULAR SECTION RENDERERS --- */
+  /* ── SECTION RENDERERS (Clean, Fine-Stationery Rhythm) ────────── */
 
-  const renderMusic = () => (
-    <div className={`flex items-center justify-between p-3 sm:p-3.5 ${roundness} ${isDarkMode ? 'bg-black/40 border-white/10' : 'bg-white/90 border-slate-200 shadow-sm'} border backdrop-blur-xl shadow-xl transition-all`}>
-      <div className="flex items-center gap-3">
-        <div
-          className="relative w-10 h-10 rounded-xl p-0.5 shadow-md"
-          style={{ background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})` }}
-        >
-          <div className={`w-full h-full ${isDarkMode ? 'bg-slate-950' : 'bg-white'} rounded-[10px] flex items-center justify-center`}>
-            <Headphones className="w-4 h-4 animate-pulse" style={{ color: primaryColor }} />
-          </div>
-        </div>
-        <div className="text-left">
-          <div
-            className="text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1.5 font-genz"
-            style={{ color: primaryColor }}
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            Now Playing • Graduation Vibe
-          </div>
-          <div className={`text-xs font-bold truncate max-w-[210px] sm:max-w-sm mt-0.5 ${headingText}`}>
-            {graduate.spotifySong || "Thanh Xuân (Graduation Anthem) • Da LAB"}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        {isPlayingMusic && (
-          <div className="flex items-end gap-1 h-5 px-1">
-            <span className="w-1 rounded-full animate-eq-1" style={{ backgroundColor: primaryColor }}></span>
-            <span className="w-1 rounded-full animate-eq-2" style={{ backgroundColor: secondaryColor }}></span>
-            <span className="w-1 rounded-full animate-eq-3" style={{ backgroundColor: primaryColor }}></span>
-            <span className="w-1 rounded-full animate-eq-4" style={{ backgroundColor: secondaryColor }}></span>
-          </div>
-        )}
-        <button
-          onClick={handleToggleMusic}
-          className={`p-2 rounded-xl transition-all cursor-pointer ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
-          title={isPlayingMusic ? "Tạm dừng giai điệu" : "Phát giai điệu chúc mừng"}
-        >
-          {isPlayingMusic ? <Pause className="w-4 h-4" style={{ color: primaryColor }} /> : <Play className="w-4 h-4 fill-current" style={{ color: primaryColor }} />}
-        </button>
-      </div>
-    </div>
-  );
-
-  const renderSchool = () => (
-    <div className={`space-y-1.5 ${textAlign}`}>
-      <div
-        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase border shadow-sm"
-        style={{
-          borderColor: `${primaryColor}40`,
-          backgroundColor: `${primaryColor}15`,
-          color: primaryColor
-        }}
-      >
-        <GraduationCap className="w-4 h-4" />
-        {graduate.school}
-      </div>
-      <div className={`text-[11px] uppercase tracking-widest font-semibold font-genz ${subText}`}>
-        {graduate.faculty} • {graduate.classBatch}
-      </div>
-    </div>
-  );
-
-  const renderHero = () => (
-    <div className={`relative overflow-hidden ${roundness} border ${cardBorderClass} ${cardBgClass} p-6 sm:p-10 ${textAlign} transition-all`}>
-      {/* Gen Z Floating Stickers */}
-      <div className="absolute top-4 left-3 sticker-tilt-left hidden sm:inline-block">
-        <span
-          className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider text-white shadow-lg border border-white/20"
-          style={{ background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})` }}
-        >
-          ✨ 100% DONE
-        </span>
-      </div>
-
-      <div className="absolute top-4 right-3 sticker-tilt-right hidden sm:inline-block">
-        <span
-          className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider text-white shadow-lg border border-white/20"
-          style={{ background: `linear-gradient(135deg, ${secondaryColor}, ${primaryColor})` }}
-        >
-          🎓 FINALLY GRADUATED
-        </span>
-      </div>
-
-      {/* Salutation to Specific Guest */}
-      <div className={`mb-6 pb-5 border-b ${isDarkMode ? 'border-white/10' : 'border-slate-100'}`}>
-        {(currentGuest?.inviteCode || currentGuest?.id) && (
-          <div className="mb-2">
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full font-mono text-[10px] font-black tracking-widest uppercase border shadow-xs"
-              style={{
-                borderColor: `${primaryColor}45`,
-                backgroundColor: `${primaryColor}15`,
-                color: primaryColor
-              }}
+  const renderHeroSection = () => (
+    <section className={`py-10 sm:py-14 px-6 sm:px-12 ${textAlign}`}>
+      {/* School & Faculty masthead */}
+      {(graduate.school || graduate.faculty) && (
+        <div className="mb-8 space-y-1">
+          {graduate.school && (
+            <p
+              className="text-[11px] uppercase tracking-[0.24em] font-semibold"
+              style={{ color: accentColor }}
             >
-              <Ticket className="w-3 h-3" />
-              MÃ THIỆP CÁ NHÂN: {currentGuest.inviteCode || currentGuest.id}
-            </span>
-          </div>
-        )}
-        <div
-          className="text-xs uppercase tracking-widest font-extrabold mb-1 font-genz"
-          style={{ color: primaryColor }}
-        >
-          {currentGuest?.salutation || "Hú le • Trân trọng kính mời"}
+              {graduate.school}
+            </p>
+          )}
+          {(graduate.faculty || graduate.classBatch) && (
+            <p className={`text-[11px] tracking-[0.12em] ${mutedColor}`}>
+              {[graduate.faculty, graduate.classBatch].filter(Boolean).join(' · ')}
+            </p>
+          )}
         </div>
-        <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-wide font-genz ${headingText}`}>
-          {currentGuest?.name || "Quý Khách & Bạn Bè"}
+      )}
+
+      {/* Invitation Masthead */}
+      <div className="space-y-3 mb-9">
+        <p className={`text-[11px] uppercase tracking-[0.26em] font-medium ${mutedColor}`}>
+          Thư Mời Tham Dự
+        </p>
+        <h1 className={`text-3xl sm:text-4xl font-editorial font-semibold tracking-tight leading-tight ${headingColor}`}>
+          Lễ Tốt Nghiệp Cử Nhân
         </h1>
+        <div
+          className={`w-12 h-px ${alignCenter ? 'mx-auto' : ''}`}
+          style={{ backgroundColor: accentColor }}
+        />
+      </div>
+
+      {/* Personalized Recipient Salutation */}
+      <div className={`py-6 mb-9 border-y ${hairline} space-y-2`}>
+        <p className={`text-[11px] uppercase tracking-[0.22em] font-medium ${mutedColor}`}>
+          {currentGuest?.salutation || 'Trân trọng kính mời'}
+        </p>
+        <div className={`text-2xl sm:text-[26px] font-editorial font-semibold ${headingColor}`}>
+          {currentGuest?.name || 'Quý Khách'}
+        </div>
         {currentGuest?.customNote && (
-          <p className={`text-xs sm:text-sm italic mt-2 max-w-lg mx-auto py-2.5 px-4 rounded-2xl border shadow-inner ${isDarkMode ? 'bg-white/5 border-white/10 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
-            "{currentGuest.customNote}"
+          <p className={`text-sm sm:text-base italic font-garamond leading-relaxed max-w-md ${alignCenter ? 'mx-auto' : ''} pt-1 ${bodyColor}`}>
+            “{currentGuest.customNote}”
           </p>
         )}
       </div>
 
-      <p className={`text-xs uppercase tracking-widest font-bold mb-2 font-genz ${subText}`}>
-        Đến tham dự Lễ Trao Bằng Cử Nhân cùng
-      </p>
-
-      {/* Graduate Avatar with Customizable Style */}
-      {layout.avatarStyle === 'polaroid' ? (
-        <div className="relative inline-block my-4 p-3.5 bg-white text-slate-900 rounded-xl shadow-2xl sticker-tilt-right max-w-[220px]">
-          <div className="w-40 h-40 overflow-hidden rounded-lg mx-auto bg-slate-900">
-            <img src={graduate.avatarUrl} alt={graduate.fullName} className="w-full h-full object-cover" />
-          </div>
-          <div className="pt-2 text-center font-bold text-xs font-genz text-slate-800">
-            {graduate.fullName} 🎓
-          </div>
-        </div>
-      ) : layout.avatarStyle === 'banner' ? (
-        <div className="relative w-full max-w-md h-52 mx-auto rounded-3xl overflow-hidden shadow-2xl my-4 border-2 border-white/20">
-          <img src={graduate.avatarUrl} alt={graduate.fullName} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4">
-            <span className="text-white font-extrabold text-sm">{graduate.honor}</span>
-          </div>
-        </div>
-      ) : (
-        <div className="relative inline-block my-4 group">
-          <div
-            className="absolute -inset-2 rounded-full blur-xl opacity-75 group-hover:opacity-100 transition duration-500 animate-pulse"
-            style={{ background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})` }}
-          ></div>
-          <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-full p-1 bg-white/20 backdrop-blur-md shadow-2xl mx-auto">
-            <img
-              src={graduate.avatarUrl}
-              alt={graduate.fullName}
-              className="w-full h-full rounded-full object-cover border-2 border-white shadow-inner"
-            />
-          </div>
-          <div
-            className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-white text-[11px] font-black uppercase tracking-wider shadow-lg whitespace-nowrap"
-            style={{ background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})` }}
-          >
-            {graduate.nickname || "Tân Cử Nhân"}
-          </div>
+      {/* Graduate Portrait (Honors layout.avatarStyle without neon glow) */}
+      {graduate.avatarUrl && (
+        <div className="my-8">
+          {layout.avatarStyle === 'polaroid' ? (
+            <figure className={`inline-block p-3 pb-5 border ${isDarkMode ? 'bg-[#1d212a] border-white/10' : 'bg-white border-stone-200'} shadow-sm max-w-[230px]`}>
+              <div className="w-48 h-56 overflow-hidden bg-stone-200">
+                <img
+                  src={graduate.avatarUrl}
+                  alt={graduate.fullName}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <figcaption className={`pt-3 text-center text-xs font-editorial italic ${mutedColor}`}>
+                {graduate.fullName}
+              </figcaption>
+            </figure>
+          ) : layout.avatarStyle === 'banner' ? (
+            <div className={`w-full max-w-md aspect-[16/10] ${alignCenter ? 'mx-auto' : ''} overflow-hidden rounded-lg border ${hairline}`}>
+              <img
+                src={graduate.avatarUrl}
+                alt={graduate.fullName}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className={`inline-block p-1.5 rounded-full border ${hairline}`}>
+              <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full overflow-hidden bg-stone-200">
+                <img
+                  src={graduate.avatarUrl}
+                  alt={graduate.fullName}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Graduate Name & Title */}
-      <div className="space-y-1 mt-3">
-        <h2 className={`text-2xl sm:text-3xl font-black tracking-tight uppercase font-genz ${headingText}`}>
+      {/* Graduate Name, Degree & Quote */}
+      <div className="space-y-2 mt-6">
+        <p className={`text-[11px] uppercase tracking-[0.22em] ${mutedColor}`}>
+          Tân Cử Nhân
+        </p>
+        <h2 className={`text-2xl sm:text-3xl font-editorial font-semibold tracking-tight uppercase ${headingColor}`}>
           {graduate.fullName}
         </h2>
-        <div
-          className="text-sm sm:text-base font-bold"
-          style={{ color: primaryColor }}
-        >
-          {graduate.degree}
-        </div>
-        <div className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-amber-400/20 text-amber-500 border border-amber-400/30 mt-1">
-          {graduate.honor}
-        </div>
+        {(graduate.degree || graduate.honor) && (
+          <p className="text-sm font-medium" style={{ color: accentColor }}>
+            {[graduate.degree, graduate.honor].filter(Boolean).join(' · ')}
+          </p>
+        )}
       </div>
 
-      {/* Quote / Vibe note */}
       {graduate.quote && (
-        <div className="mt-5 max-w-lg mx-auto">
-          <p className={`text-xs sm:text-sm italic leading-relaxed ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-            "{graduate.quote}"
+        <p className={`mt-6 text-sm sm:text-base italic font-garamond leading-relaxed max-w-md ${alignCenter ? 'mx-auto' : ''} ${bodyColor}`}>
+          “{graduate.quote}”
+        </p>
+      )}
+    </section>
+  );
+
+  const renderCountdownSection = () => (
+    <section className={`py-8 px-6 sm:px-12 border-t ${hairline}`}>
+      <CountdownTimer
+        targetDate={ceremony.date}
+        targetTime={ceremony.time}
+        accentColor={accentColor}
+        isDarkMode={isDarkMode}
+        showLabel
+      />
+    </section>
+  );
+
+  const renderVenueSection = () => (
+    <section className={`py-10 sm:py-12 px-6 sm:px-12 border-t ${hairline} ${textAlign}`}>
+      <p
+        className="text-[11px] uppercase tracking-[0.24em] font-semibold mb-2"
+        style={{ color: accentColor }}
+      >
+        Thời Gian & Địa Điểm
+      </p>
+      <h3 className={`text-xl sm:text-2xl font-editorial font-semibold mb-8 ${headingColor}`}>
+        Thông Tin Buổi Lễ
+      </h3>
+
+      <div className={`grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x border-y ${hairline} ${isDarkMode ? 'divide-white/10' : 'divide-stone-200/90'} text-left`}>
+        <div className="py-5 sm:pr-6 space-y-1.5">
+          <div className={`flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] font-semibold ${mutedColor}`}>
+            <Calendar className="w-3.5 h-3.5" style={{ color: accentColor }} />
+            <span>Thời gian</span>
+          </div>
+          <p className={`text-sm font-semibold capitalize ${headingColor}`}>
+            {formattedDate}
+          </p>
+          <p className={`text-xs ${bodyColor}`}>
+            {ceremony.time}{ceremony.endExpected ? ` – ${ceremony.endExpected}` : ''}
           </p>
         </div>
+
+        <div className="py-5 sm:pl-6 space-y-1.5">
+          <div className={`flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] font-semibold ${mutedColor}`}>
+            <MapPin className="w-3.5 h-3.5" style={{ color: accentColor }} />
+            <span>Địa điểm</span>
+          </div>
+          <p className={`text-sm font-semibold ${headingColor}`}>
+            {ceremony.venueName}
+          </p>
+          <p className={`text-xs leading-relaxed ${bodyColor}`}>
+            {ceremony.address}
+          </p>
+        </div>
+      </div>
+
+      {ceremony.dressCode && (
+        <p className={`mt-5 text-xs ${mutedColor}`}>
+          Trang phục gợi ý: <span className={`font-medium ${headingColor}`}>{ceremony.dressCode}</span>
+        </p>
       )}
-    </div>
-  );
 
-  const renderReactions = () => (
-    <div className={`p-4 ${roundness} border ${cardBorderClass} ${cardBgClass} backdrop-blur-xl shadow-xl flex items-center justify-around gap-2 transition-all`}>
-      <button
-        onClick={() => handleReactionClick('heart')}
-        className={`flex-1 py-2 px-3 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
-          userReacted.heart
-            ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25 scale-105'
-            : isDarkMode ? 'bg-white/5 hover:bg-white/10 text-rose-300' : 'bg-rose-50 hover:bg-rose-100 text-rose-700'
-        }`}
-      >
-        <Heart className="w-4 h-4 fill-current" />
-        <span>{reactions.heart}</span>
-      </button>
-
-      <button
-        onClick={() => handleReactionClick('fire')}
-        className={`flex-1 py-2 px-3 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
-          userReacted.fire
-            ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25 scale-105'
-            : isDarkMode ? 'bg-white/5 hover:bg-white/10 text-amber-300' : 'bg-amber-50 hover:bg-amber-100 text-amber-700'
-        }`}
-      >
-        <Flame className="w-4 h-4 fill-current" />
-        <span>{reactions.fire}</span>
-      </button>
-
-      <button
-        onClick={() => handleReactionClick('grad')}
-        className={`flex-1 py-2 px-3 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
-          userReacted.grad
-            ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 scale-105'
-            : isDarkMode ? 'bg-white/5 hover:bg-white/10 text-sky-300' : 'bg-sky-50 hover:bg-sky-100 text-sky-700'
-        }`}
-      >
-        <Award className="w-4 h-4" />
-        <span>{reactions.grad}</span>
-      </button>
-
-      <button
-        onClick={() => handleReactionClick('congrats')}
-        className={`flex-1 py-2 px-3 rounded-2xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
-          userReacted.congrats
-            ? 'bg-purple-500 text-white shadow-md shadow-purple-500/25 scale-105'
-            : isDarkMode ? 'bg-white/5 hover:bg-white/10 text-purple-300' : 'bg-purple-50 hover:bg-purple-100 text-purple-700'
-        }`}
-      >
-        <Sparkles className="w-4 h-4" />
-        <span>{reactions.congrats}</span>
-      </button>
-    </div>
-  );
-
-  const renderCountdown = () => (
-    <div className={`p-6 sm:p-8 ${roundness} border ${cardBorderClass} ${cardBgClass} backdrop-blur-xl shadow-xl space-y-4 ${textAlign}`}>
-      <div className="flex items-center justify-center gap-2 text-xs uppercase font-extrabold tracking-wider font-genz" style={{ color: primaryColor }}>
-        <Clock className="w-4 h-4" />
-        Đếm Ngược Đến Giờ Khắc Tốt Nghiệp
-      </div>
-      <CountdownTimer targetDate={ceremony.date} targetTime={ceremony.time} accentColor={primaryColor} />
-    </div>
-  );
-
-  const renderVenue = () => (
-    <div className={`p-6 sm:p-8 ${roundness} border ${cardBorderClass} ${cardBgClass} backdrop-blur-xl shadow-xl space-y-5 ${textAlign}`}>
-      <div className="space-y-1">
-        <span
-          className="text-[11px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border"
-          style={{
-            borderColor: `${primaryColor}40`,
-            backgroundColor: `${primaryColor}15`,
-            color: primaryColor
-          }}
-        >
-          Thông Tin Chi Tiết
-        </span>
-        <h3 className={`text-xl sm:text-2xl font-black mt-2 font-genz ${headingText}`}>
-          Thời Gian & Địa Điểm Cử Hành
-        </h3>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-        {/* Time Card */}
-        <div className={`p-4 rounded-2xl ${subCardBg} flex items-start gap-3`}>
-          <div className="p-2.5 rounded-xl shrink-0" style={{ backgroundColor: `${primaryColor}20`, color: primaryColor }}>
-            <Calendar className="w-5 h-5" />
-          </div>
-          <div>
-            <div className={`text-[10px] uppercase font-bold tracking-wider ${subText}`}>Thời gian tổ chức</div>
-            <div className={`text-sm font-bold mt-0.5 capitalize ${headingText}`}>{formattedDate}</div>
-            <div className="text-xs font-semibold mt-0.5" style={{ color: primaryColor }}>
-              Bắt đầu lúc {ceremony.time} - {ceremony.endExpected}
-            </div>
-          </div>
-        </div>
-
-        {/* Venue Card */}
-        <div className={`p-4 rounded-2xl ${subCardBg} flex items-start gap-3`}>
-          <div className="p-2.5 rounded-xl shrink-0" style={{ backgroundColor: `${secondaryColor}20`, color: secondaryColor }}>
-            <MapPin className="w-5 h-5" />
-          </div>
-          <div>
-            <div className={`text-[10px] uppercase font-bold tracking-wider ${subText}`}>Địa điểm tổ chức</div>
-            <div className={`text-sm font-bold mt-0.5 ${headingText}`}>{ceremony.venueName}</div>
-            <div className={`text-xs line-clamp-1 mt-0.5 ${subText}`}>{ceremony.address}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Dresscode Notice */}
-      {
-      //ceremony.dressCode && (
-        // <div
-        //   className="p-3 rounded-2xl border flex items-center justify-center gap-2 text-xs font-semibold"
-        //   style={{
-        //     backgroundColor: `${primaryColor}10`,
-        //     borderColor: `${primaryColor}30`,
-        //     color: isDarkMode ? '#e2e8f0' : '#1e293b'
-        //   }}
-        // >
-        //   <Shirt className="w-4 h-4" style={{ color: primaryColor }} />
-        //   {/* <span>Dress Code: <strong>{ceremony.dressCode}</strong></span> */}
-        // </div>
-      //)
-      }
-
-      {/* Action Buttons: Google Maps & Add to Calendar */}
-      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+      <div className="mt-7 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
         <a
-          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ceremony.mapQuery || ceremony.address)}`}
+          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ceremony.mapQuery || ceremony.address || '')}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 py-3 px-4 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 border transition-all"
-          style={primaryBtnStyle}
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs uppercase tracking-[0.14em] font-semibold text-white transition-opacity hover:opacity-90"
+          style={{ backgroundColor: accentColor }}
         >
-          <Compass className="w-4 h-4" />
-          Mở Bản Đồ Chỉ Đường
+          <span>Xem chỉ đường</span>
+          <ArrowUpRight className="w-3.5 h-3.5" />
         </a>
 
         <a
           href={googleCalUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className={`flex-1 py-3 px-4 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 border transition-all ${
-            isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white border-white/20' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+          className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs uppercase tracking-[0.14em] font-semibold border transition-colors ${
+            isDarkMode
+              ? 'border-white/20 text-stone-200 hover:bg-white/5'
+              : 'border-stone-300 text-stone-700 hover:bg-stone-100'
           }`}
         >
-          <CalendarPlus className="w-4 h-4" />
-          Thêm Vào Lịch (Google)
+          <CalendarPlus className="w-3.5 h-3.5" />
+          <span>Thêm vào lịch</span>
         </a>
       </div>
-    </div>
+    </section>
   );
 
-  const renderTimeline = () => (
-    <div className={`p-6 sm:p-8 ${roundness} border ${cardBorderClass} ${cardBgClass} backdrop-blur-xl shadow-xl space-y-6`}>
-      <div className={`space-y-1 ${textAlign}`}>
-        <span
-          className="text-[11px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border"
-          style={{
-            borderColor: `${primaryColor}40`,
-            backgroundColor: `${primaryColor}15`,
-            color: primaryColor
-          }}
-        >
-          Chương Trình
-        </span>
-        <h3 className={`text-xl sm:text-2xl font-black mt-2 font-genz ${headingText}`}>
-          Lịch Trình Chi Tiết
-        </h3>
-      </div>
-
-      <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-gradient-to-b" style={{ '--tw-gradient-from': primaryColor, '--tw-gradient-to': secondaryColor }}>
-        {ceremony.timeline.map((step, idx) => (
-          <div key={idx} className="relative group">
-            <span
-              className="absolute -left-[27px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white shadow"
-              style={{ backgroundColor: primaryColor }}
-            ></span>
-            <div className={`p-4 rounded-2xl ${subCardBg} space-y-1 transition-transform group-hover:scale-[1.01]`}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-black" style={{ color: primaryColor }}>
-                  {step.time}
-                </span>
-                <span className={`text-[10px] ${subText}`}>Mốc {idx + 1}</span>
-              </div>
-              <div className={`text-sm font-bold font-genz ${headingText}`}>{step.title}</div>
-              {step.desc && <p className={`text-xs ${subText}`}>{step.desc}</p>}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderGallery = () => (
-    <div className={`p-6 sm:p-8 ${roundness} border ${cardBorderClass} ${cardBgClass} backdrop-blur-xl shadow-xl space-y-6`}>
-      <div className={`space-y-1 ${textAlign}`}>
-        <span
-          className="text-[11px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border"
-          style={{
-            borderColor: `${primaryColor}40`,
-            backgroundColor: `${primaryColor}15`,
-            color: primaryColor
-          }}
-        >
-          Kỷ Niệm Thanh Xuân
-        </span>
-        <h3 className={`text-xl sm:text-2xl font-black mt-2 font-genz ${headingText}`}>
-          Album Ảnh Kỷ Yếu & Đại Học
-        </h3>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {gallery.map((photo) => (
-          <div
-            key={photo.id}
-            onClick={() => setSelectedPhoto(photo)}
-            className="group relative rounded-2xl overflow-hidden aspect-4/3 cursor-pointer shadow-md border border-white/10"
+  const renderTimelineSection = () => {
+    if (!ceremony.timeline?.length) return null;
+    return (
+      <section className={`py-10 sm:py-12 px-6 sm:px-12 border-t ${hairline}`}>
+        <div className={`mb-7 ${textAlign}`}>
+          <p
+            className="text-[11px] uppercase tracking-[0.24em] font-semibold mb-2"
+            style={{ color: accentColor }}
           >
-            <img
-              src={photo.url}
-              alt={photo.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5">
-              <span className="text-white text-xs font-bold font-genz">{photo.title}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+            Chương Trình
+          </p>
+          <h3 className={`text-xl sm:text-2xl font-editorial font-semibold ${headingColor}`}>
+            Lịch Trình Buổi Lễ
+          </h3>
+        </div>
 
-  const renderRsvp = () => (
-    <div className={`p-6 sm:p-8 ${roundness} border ${cardBorderClass} ${cardBgClass} backdrop-blur-xl shadow-xl space-y-6`}>
-      <div className={`space-y-1 ${textAlign}`}>
-        <span
-          className="text-[11px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border"
-          style={{
-            borderColor: `${primaryColor}40`,
-            backgroundColor: `${primaryColor}15`,
-            color: primaryColor
-          }}
+        <ol className={`divide-y ${isDarkMode ? 'divide-white/10' : 'divide-stone-200/80'}`}>
+          {ceremony.timeline.map((step, idx) => (
+            <li key={idx} className="py-4 flex items-baseline gap-5">
+              <span
+                className="w-14 shrink-0 text-xs font-mono font-semibold tabular-nums"
+                style={{ color: accentColor }}
+              >
+                {step.time}
+              </span>
+              <div className="space-y-1">
+                <div className={`text-sm font-semibold ${headingColor}`}>{step.title}</div>
+                {step.desc && <p className={`text-xs leading-relaxed ${mutedColor}`}>{step.desc}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    );
+  };
+
+  const renderGallerySection = () => {
+    if (!gallery?.length) return null;
+    return (
+      <section className={`py-10 sm:py-12 px-6 sm:px-12 border-t ${hairline}`}>
+        <div className={`mb-7 ${textAlign}`}>
+          <p
+            className="text-[11px] uppercase tracking-[0.24em] font-semibold mb-2"
+            style={{ color: accentColor }}
+          >
+            Kỷ Niệm
+          </p>
+          <h3 className={`text-xl sm:text-2xl font-editorial font-semibold ${headingColor}`}>
+            Khoảnh Khắc Thanh Xuân
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {gallery.map((photo) => (
+            <button
+              key={photo.id}
+              type="button"
+              onClick={() => setSelectedPhoto(photo)}
+              className={`group relative overflow-hidden rounded-lg aspect-[4/3] border ${hairline} cursor-pointer text-left`}
+            >
+              <img
+                src={photo.url}
+                alt={photo.title}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+              />
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  };
+
+  const renderRsvpSection = () => (
+    <section className={`py-10 sm:py-12 px-6 sm:px-12 border-t ${hairline}`}>
+      <div className={`mb-7 space-y-2 ${textAlign}`}>
+        <p
+          className="text-[11px] uppercase tracking-[0.24em] font-semibold"
+          style={{ color: accentColor }}
         >
           Phản Hồi Tham Dự
-        </span>
-        <h3 className={`text-xl sm:text-2xl font-black mt-2 font-genz ${headingText}`}>
-          Xác Nhận Tham Dự (RSVP)
+        </p>
+        <h3 className={`text-xl sm:text-2xl font-editorial font-semibold ${headingColor}`}>
+          Xác Nhận Tham Dự
         </h3>
-        <p className={`text-xs ${subText}`}>
-          Để Minh chuẩn bị chu đáo hoa, quà và chỗ ngồi tiếp đón bạn tốt nhất nha!
+        <p className={`text-xs leading-relaxed max-w-sm ${alignCenter ? 'mx-auto' : ''} ${mutedColor}`}>
+          Sự hiện diện của bạn là niềm vui lớn đối với {graduate.fullName || 'tân cử nhân'}.
         </p>
       </div>
 
       {rsvpSubmitted ? (
-        <div className={`p-6 rounded-2xl text-center space-y-2 ${isDarkMode ? 'bg-emerald-500/10 border border-emerald-400/30 text-emerald-200' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-          <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-          <h4 className="text-base font-bold font-genz">Đã Gửi Xác Nhận Thành Công!</h4>
-          <p className="text-xs opacity-90">
-            Cảm ơn {currentGuest?.name || 'bạn'} rất nhiều. Hẹn gặp bạn tại Lễ Tốt Nghiệp nhé! ✨
+        <div className={`p-6 rounded-lg border text-center space-y-2 ${subtleSurface}`}>
+          <div
+            className="w-9 h-9 rounded-full mx-auto flex items-center justify-center text-white"
+            style={{ backgroundColor: accentColor }}
+          >
+            <Check className="w-4 h-4" />
+          </div>
+          <h4 className={`text-sm font-semibold ${headingColor}`}>
+            Đã ghi nhận phản hồi của bạn
+          </h4>
+          <p className={`text-xs ${mutedColor}`}>
+            {rsvpStatus === 'declined'
+              ? `Cảm ơn ${currentGuest?.name || 'bạn'} đã phản hồi. Rất mong sẽ gặp lại bạn vào một dịp gần nhất.`
+              : `Cảm ơn ${currentGuest?.name || 'bạn'} (${guestCount} người). Hẹn gặp bạn tại buổi lễ.`}
           </p>
         </div>
       ) : (
-        <form onSubmit={handleRsvpSubmit} className="space-y-4">
+        <form onSubmit={handleRsvpSubmit} className="space-y-4 max-w-md mx-auto">
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setRsvpStatus('confirmed')}
-              className={`p-3.5 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+              className={`py-3 px-4 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                 rsvpStatus === 'confirmed'
-                  ? 'bg-emerald-500 text-white border-emerald-400 shadow-md scale-102 font-extrabold'
-                  : subCardBg
+                  ? 'text-white border-transparent'
+                  : `${subtleSurface} ${bodyColor} hover:border-stone-400`
               }`}
+              style={rsvpStatus === 'confirmed' ? { backgroundColor: accentColor } : {}}
             >
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              <span>Chắc Chắn Đi ✨</span>
+              Sẽ tham dự
             </button>
 
             <button
               type="button"
               onClick={() => setRsvpStatus('declined')}
-              className={`p-3.5 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+              className={`py-3 px-4 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                 rsvpStatus === 'declined'
-                  ? 'bg-rose-500 text-white border-rose-400 shadow-md scale-102 font-extrabold'
-                  : subCardBg
+                  ? isDarkMode
+                    ? 'bg-stone-200 text-stone-900 border-stone-200'
+                    : 'bg-stone-800 text-white border-stone-800'
+                  : `${subtleSurface} ${bodyColor} hover:border-stone-400`
               }`}
             >
-              <XCircle className="w-5 h-5 text-rose-400" />
-              <span>Bận Mất Rồi 🥺</span>
+              Rất tiếc bận mất rồi
             </button>
           </div>
 
           {rsvpStatus === 'confirmed' && (
-            <div className="space-y-1.5">
-              <label className={`text-xs font-semibold block ${subText}`}>Số lượng người cùng tham dự:</label>
-              <div className="flex gap-2">
+            <div className="space-y-2 pt-1">
+              <label className={`text-xs block ${mutedColor}`}>Số lượng người tham dự</label>
+              <div className="grid grid-cols-4 gap-2">
                 {[1, 2, 3, 4].map((num) => (
                   <button
                     key={num}
                     type="button"
                     onClick={() => setGuestCount(num)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
                       guestCount === num
-                        ? 'text-white font-extrabold shadow'
-                        : isDarkMode ? 'bg-white/10 text-slate-300 hover:bg-white/20' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        ? 'text-white border-transparent'
+                        : `${subtleSurface} ${bodyColor}`
                     }`}
-                    style={guestCount === num ? primaryBtnStyle : {}}
+                    style={guestCount === num ? { backgroundColor: accentColor } : {}}
                   >
-                    {num} người
+                    {num}
                   </button>
                 ))}
               </div>
@@ -717,306 +509,240 @@ export default function InteractiveWebInvite({
 
           <button
             type="submit"
-            className="w-full py-3.5 rounded-2xl font-black text-sm tracking-wide transition-all shadow-lg cursor-pointer"
-            style={primaryBtnStyle}
+            className="w-full py-3 rounded-lg text-xs uppercase tracking-[0.16em] font-semibold text-white transition-opacity hover:opacity-90 cursor-pointer"
+            style={{ backgroundColor: accentColor }}
           >
-            Gửi Xác Nhận Tham Dự Ngay ✨
+            Gửi xác nhận
           </button>
         </form>
       )}
-    </div>
+    </section>
   );
 
-  const renderGuestbook = () => (
-    <div className={`p-6 sm:p-8 ${roundness} border ${cardBorderClass} ${cardBgClass} backdrop-blur-xl shadow-xl space-y-6`}>
-      <div className={`flex items-center gap-3 border-b pb-4 ${isDarkMode ? 'border-white/10' : 'border-slate-100'}`}>
-        <div className="p-2 rounded-xl" style={{ backgroundColor: `${primaryColor}20`, color: primaryColor }}>
-          <MessageSquare className="w-5 h-5" />
-        </div>
-        <div>
-          <h3 className={`text-base sm:text-lg font-bold font-genz ${headingText}`}>Sổ Lưu Bút & Lời Chúc Mừng</h3>
-          <p className={`text-xs ${subText}`}>Gửi lời nhắn nhủ cute hoặc chúc mừng tân cử nhân</p>
-        </div>
+  const renderGuestbookSection = () => (
+    <section className={`py-10 sm:py-12 px-6 sm:px-12 border-t ${hairline}`}>
+      <div className={`mb-7 space-y-2 ${textAlign}`}>
+        <p
+          className="text-[11px] uppercase tracking-[0.24em] font-semibold"
+          style={{ color: accentColor }}
+        >
+          Lưu Bút
+        </p>
+        <h3 className={`text-xl sm:text-2xl font-editorial font-semibold ${headingColor}`}>
+          Gửi Lời Chúc Mừng
+        </h3>
+        <p className={`text-xs ${mutedColor}`}>
+          Lời nhắn của bạn sẽ được gửi riêng đến {graduate.fullName || 'tân cử nhân'}.
+        </p>
       </div>
 
-      {/* Form write wish */}
-      <form onSubmit={handleSendWish} className="space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <input
-            type="text"
-            placeholder="Tên của bạn..."
-            value={wishName}
-            onChange={(e) => setWishName(e.target.value)}
-            className={`sm:col-span-1 px-4 py-2.5 rounded-xl border text-xs font-semibold focus:outline-none ${inputBg}`}
-          />
-
-          {/* Emoji selector */}
-          <div className={`sm:col-span-2 flex items-center justify-around p-1.5 rounded-xl border ${subCardBg}`}>
-            {['🎓', '💐', '🥂', '✨', '🔥', '💖'].map((em) => (
-              <button
-                key={em}
-                type="button"
-                onClick={() => setSelectedEmoji(em)}
-                className={`px-3 py-1 text-lg rounded-lg transition-transform cursor-pointer ${
-                  selectedEmoji === em ? 'scale-125 border border-sky-400 shadow-sm' : 'opacity-70 hover:opacity-100'
-                }`}
-                style={selectedEmoji === em ? { backgroundColor: `${primaryColor}30` } : {}}
-              >
-                {em}
-              </button>
-            ))}
-          </div>
-        </div>
+      <form onSubmit={handleSendWish} className="space-y-3 max-w-md mx-auto">
+        <input
+          type="text"
+          placeholder="Tên của bạn"
+          value={wishName}
+          onChange={(e) => setWishName(e.target.value)}
+          className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition-colors focus:outline-none ${inputStyle}`}
+        />
 
         <textarea
           rows={3}
-          placeholder="Viết lời chúc mừng của bạn gửi tới tân cử nhân..."
+          placeholder="Viết vài dòng nhắn gửi..."
           value={wishMsg}
           onChange={(e) => setWishMsg(e.target.value)}
-          className={`w-full px-4 py-3 rounded-xl border text-xs resize-none font-medium focus:outline-none ${inputBg}`}
+          className={`w-full px-3.5 py-2.5 rounded-lg border text-sm resize-none transition-colors focus:outline-none ${inputStyle}`}
           required
         />
 
         <button
           type="submit"
-          className="w-full py-3 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 font-genz"
-          style={primaryBtnStyle}
+          className="w-full py-3 rounded-lg text-xs uppercase tracking-[0.16em] font-semibold text-white transition-opacity hover:opacity-90 cursor-pointer"
+          style={{ backgroundColor: accentColor }}
         >
-          <Heart className="w-4 h-4 fill-current text-white" />
-          Bắn Lời Chúc Mừng 🚀
+          Gửi lời chúc
         </button>
 
         {wishSentSuccess && (
-          <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold text-center">
-            🎉 Đã gửi lời chúc riêng tư thành công tới {graduate.fullName}!
-          </div>
+          <p className={`text-xs text-center pt-1 font-medium`} style={{ color: accentColor }}>
+            Đã gửi lời chúc thành công đến {graduate.fullName}.
+          </p>
         )}
       </form>
 
-      {/* List of Wishes — Chỉ Admin (canViewWishes) mới xem được lời chúc của mọi người */}
+      {/* Admin-only wishes wall or guest's own sent wishes */}
       {canViewWishes ? (
-        <div className="space-y-3 pt-2">
-          <div className={`flex items-center justify-between text-[11px] font-bold ${subText}`}>
-            <span className="flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-amber-400" />
-              Toàn Bộ Lưu Bút (Chỉ Admin thấy • {wishes.length})
-            </span>
+        <div className="mt-8 space-y-3 max-w-md mx-auto">
+          <div className={`flex items-center gap-1.5 text-[11px] font-medium ${mutedColor}`}>
+            <Lock className="w-3.5 h-3.5" />
+            <span>Sổ lưu bút quản trị ({wishes.length})</span>
           </div>
           {wishes.map((item) => (
-            <div
-              key={item.id}
-              className={`p-4 rounded-2xl border space-y-1.5 transition-all ${subCardBg}`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{item.emoji || '🎓'}</span>
-                  <span className="text-xs font-bold font-genz" style={{ color: primaryColor }}>
-                    {item.guestName}
-                  </span>
-                  {item.relationship && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDarkMode ? 'bg-white/10 text-slate-300' : 'bg-slate-200 text-slate-700'}`}>
-                      {item.relationship}
-                    </span>
-                  )}
-                </div>
-                <span className={`text-[10px] font-mono ${subText}`}>{item.time}</span>
+            <div key={item.id} className={`p-4 rounded-lg border space-y-1 ${subtleSurface}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-xs font-semibold ${headingColor}`}>{item.guestName}</span>
+                <span className={`text-[10px] font-mono ${mutedColor}`}>{item.time}</span>
               </div>
-              <p className={`text-xs pl-7 leading-relaxed ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                "{item.message}"
-              </p>
+              <p className={`text-xs leading-relaxed ${bodyColor}`}>“{item.message}”</p>
             </div>
           ))}
         </div>
       ) : (
-        <div className="space-y-3 pt-2">
-          {/* <div className={`p-4 rounded-2xl border flex items-start gap-3 ${subCardBg}`}>
-            <Lock className="w-4 h-4 shrink-0 mt-0.5" style={{ color: primaryColor }} />
-            <div className="space-y-1">
-              <div className={`text-xs font-bold ${headingText}`}>
-                Lưu bút chế độ riêng tư
-              </div>
-              <p className={`text-[11px] leading-relaxed ${subText}`}>
-                Lời chúc của bạn sẽ được gửi trực tiếp & bảo mật đến {graduate.fullName}. Chỉ chủ nhân buổi lễ mới xem được lưu bút của các khách mời khác.
-              </p>
-            </div>
-          </div> */}
-
-          {mySentWishes.map((item) => (
-            <div
-              key={item.id}
-              className={`p-4 rounded-2xl border space-y-1.5 transition-all ${subCardBg}`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{item.emoji || '🎓'}</span>
-                  <span className="text-xs font-bold font-genz" style={{ color: primaryColor }}>
-                    {item.guestName}
-                  </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDarkMode ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700'}`}>
-                    Lời chúc của bạn ✓
-                  </span>
+        mySentWishes.length > 0 && (
+          <div className="mt-6 space-y-2.5 max-w-md mx-auto">
+            {mySentWishes.map((item) => (
+              <div key={item.id} className={`p-4 rounded-lg border space-y-1 ${subtleSurface}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`text-xs font-semibold ${headingColor}`}>{item.guestName}</span>
+                  <span className={`text-[10px] ${mutedColor}`}>Đã gửi</span>
                 </div>
-                <span className={`text-[10px] font-mono ${subText}`}>{item.time}</span>
+                <p className={`text-xs leading-relaxed ${bodyColor}`}>“{item.message}”</p>
               </div>
-              <p className={`text-xs pl-7 leading-relaxed ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                "{item.message}"
-              </p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
-    </div>
+    </section>
   );
 
+  // Ordered sections (stripping decorative fluff like fake music player & fake reactions)
+  const orderedIds = sections
+    .filter((s) => s.enabled && !['music', 'reactions', 'school'].includes(s.id))
+    .map((s) => s.id);
+
+  // Ensure hero always appears if school was enabled or hero is enabled
+  if (!orderedIds.includes('hero') && isSectionEnabled('school')) {
+    orderedIds.unshift('hero');
+  }
+
   return (
-    <div className={`min-h-screen ${pageBgClass} transition-colors duration-500 pb-20 font-sans`}>
-      {/* Envelope Modal (Opens on first view or when triggered) */}
+    <div className={`min-h-screen ${outerBg} transition-colors duration-300 py-6 sm:py-10 px-4 font-sans`}>
       {!hasOpenedEnvelope && (
         <EnvelopeModal
           guest={currentGuest}
           graduate={graduate}
-          theme={theme}
+          theme={{ ...theme, mode: isDarkMode ? 'dark' : 'light' }}
           onOpen={() => setHasOpenedEnvelope(true)}
         />
       )}
 
-      {/* Floating Action Controls */}
-      <div className="fixed bottom-5 right-5 z-40 flex flex-col gap-2.5">
-        
-        {/* Dark / Light Mode Toggle Button (Tính năng người dùng yêu cầu!) */}
-        <button
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          className={`p-3 rounded-full shadow-2xl backdrop-blur-md transition-all hover:scale-110 cursor-pointer ${
-            isDarkMode
-              ? 'bg-slate-900/90 text-amber-300 border border-amber-400/50 hover:bg-slate-800'
-              : 'bg-white text-indigo-600 border border-slate-300 hover:bg-slate-50'
-          }`}
-          title={isDarkMode ? "Chuyển sang Chế độ Sáng (Light Mode)" : "Chuyển sang Chế độ Tối (Dark Mode)"}
-        >
-          {isDarkMode ? <Sun className="w-5 h-5 text-amber-300" /> : <Moon className="w-5 h-5 text-indigo-600" />}
-        </button>
+      {/* Minimal Utility Strip above the invitation sheet */}
+      <div className="max-w-xl mx-auto mb-4 flex items-center justify-between gap-3">
+        <span className={`text-[11px] uppercase tracking-[0.2em] font-medium ${mutedColor}`}>
+          Thiệp mời
+        </span>
 
-        {/* Envelope trigger button */}
-        <button
-          onClick={() => setHasOpenedEnvelope(false)}
-          className={`p-3 rounded-full shadow-xl backdrop-blur-md transition-transform hover:scale-110 cursor-pointer ${
-            isDarkMode ? 'bg-slate-900/90 hover:bg-slate-800 text-sky-300 border border-sky-500/40' : 'bg-white hover:bg-slate-50 text-sky-600 border border-slate-200'
-          }`}
-          title="Xem lại phong bì mở thiệp"
-        >
-          <Mail className="w-5 h-5" />
-        </button>
-
-        {/* High-res card download button */}
-        <button
-          onClick={onOpenExportModal}
-          className="p-3 rounded-full text-white font-bold shadow-xl transition-transform hover:scale-110 cursor-pointer"
-          style={primaryBtnStyle}
-          title="Tải ảnh thiệp mời chất lượng cao"
-        >
-          <Download className="w-5 h-5" />
-        </button>
-      </div>
-
-      {/* Main Dynamic Layout Container */}
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10 space-y-7">
-        
-        {/* Subtle Top Mode Pill Switcher */}
-        <div className="flex items-center justify-between pb-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full animate-ping" style={{ backgroundColor: primaryColor }}></span>
-            <span className={`text-[11px] font-bold font-genz uppercase tracking-wider ${subText}`}>
-              Thiệp Mời Online
-            </span>
-          </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium transition-colors cursor-pointer ${
+              isDarkMode
+                ? 'border-white/15 text-stone-300 hover:bg-white/5'
+                : 'border-stone-300/80 bg-white/70 text-stone-700 hover:bg-white'
+            }`}
+            title={isDarkMode ? 'Chuyển sang nền sáng' : 'Chuyển sang nền tối'}
+          >
+            {isDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            <span>{isDarkMode ? 'Sáng' : 'Tối'}</span>
+          </button>
 
           <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            type="button"
+            onClick={() => setHasOpenedEnvelope(false)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium transition-colors cursor-pointer ${
               isDarkMode
-                ? 'bg-white/10 hover:bg-white/20 text-amber-300 border border-white/15'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm'
+                ? 'border-white/15 text-stone-300 hover:bg-white/5'
+                : 'border-stone-300/80 bg-white/70 text-stone-700 hover:bg-white'
             }`}
+            title="Xem lại phong bì"
           >
-            {isDarkMode ? (
-              <>
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-                <span>Chế độ Sáng</span>
-              </>
-            ) : (
-              <>
-                <Moon className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Chế độ Tối</span>
-              </>
-            )}
+            <Mail className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Phong bì</span>
           </button>
-        </div>
 
-        {/* Render Sections in Custom Layout Order */}
-        {sections.map((section) => {
-          if (!section.enabled) return null;
-          switch (section.id) {
-            case 'music':
-              return <div key="music">{renderMusic()}</div>;
-            case 'school':
-              return <div key="school">{renderSchool()}</div>;
+          {onOpenExportModal && (
+            <button
+              type="button"
+              onClick={onOpenExportModal}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium transition-colors cursor-pointer ${
+                isDarkMode
+                  ? 'border-white/15 text-stone-300 hover:bg-white/5'
+                  : 'border-stone-300/80 bg-white/70 text-stone-700 hover:bg-white'
+              }`}
+              title="Tải ảnh thiệp mời"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Lưu ảnh</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Single Continuous Fine-Stationery Invitation Sheet */}
+      <article className={`relative max-w-xl mx-auto rounded-xl border overflow-hidden ${sheetBg}`}>
+        {/* Subtle top hairline accent */}
+        <div className="h-1 w-full" style={{ backgroundColor: accentColor }} />
+
+        {orderedIds.map((sectionId) => {
+          switch (sectionId) {
             case 'hero':
-              return <div key="hero">{renderHero()}</div>;
-            case 'reactions':
-              return <div key="reactions">{renderReactions()}</div>;
+              return <React.Fragment key="hero">{renderHeroSection()}</React.Fragment>;
             case 'countdown':
-              return <div key="countdown">{renderCountdown()}</div>;
+              return <React.Fragment key="countdown">{renderCountdownSection()}</React.Fragment>;
             case 'venue':
-              return <div key="venue">{renderVenue()}</div>;
+              return <React.Fragment key="venue">{renderVenueSection()}</React.Fragment>;
             case 'timeline':
-              return <div key="timeline">{renderTimeline()}</div>;
+              return <React.Fragment key="timeline">{renderTimelineSection()}</React.Fragment>;
             case 'gallery':
-              return <div key="gallery">{renderGallery()}</div>;
+              return <React.Fragment key="gallery">{renderGallerySection()}</React.Fragment>;
             case 'rsvp':
-              return <div key="rsvp">{renderRsvp()}</div>;
+              return <React.Fragment key="rsvp">{renderRsvpSection()}</React.Fragment>;
             case 'guestbook':
-              return <div key="guestbook">{renderGuestbook()}</div>;
+              return <React.Fragment key="guestbook">{renderGuestbookSection()}</React.Fragment>;
             default:
               return null;
           }
         })}
 
-        {/* Lightbox Modal for Photo */}
-        {selectedPhoto && (
-          <div
-            onClick={() => setSelectedPhoto(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md cursor-pointer"
-          >
-            <div className="relative max-w-xl w-full" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => setSelectedPhoto(null)}
-                className="absolute -top-10 right-0 p-2 text-white hover:text-sky-400 cursor-pointer"
-              >
-                <X className="w-6 h-6" />
-              </button>
-              <img
-                src={selectedPhoto.url}
-                alt={selectedPhoto.title}
-                className="w-full h-auto rounded-3xl shadow-2xl border border-white/20 max-h-[80vh] object-contain mx-auto"
-              />
-              <div className="text-center text-sm font-bold text-white mt-3 font-genz">
-                {selectedPhoto.title}
-              </div>
-            </div>
+        {/* Minimal Stationery Colophon Footer */}
+        <footer className={`py-6 px-6 border-t ${hairline} text-center space-y-1`}>
+          <p className={`text-xs font-editorial italic ${mutedColor}`}>
+            Trân trọng cảm ơn sự hiện diện của bạn
+          </p>
+          {(currentGuest?.inviteCode || graduate.classBatch) && (
+            <p className={`text-[10px] font-mono tracking-[0.16em] uppercase ${mutedColor} opacity-75`}>
+              {[graduate.classBatch, currentGuest?.inviteCode].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </footer>
+      </article>
+
+      {/* Clean Photo Lightbox */}
+      {selectedPhoto && (
+        <div
+          onClick={() => setSelectedPhoto(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs cursor-pointer"
+        >
+          <div className="relative max-w-xl w-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setSelectedPhoto(null)}
+              className="absolute -top-10 right-0 p-2 text-stone-300 hover:text-white cursor-pointer"
+              aria-label="Đóng ảnh"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={selectedPhoto.url}
+              alt={selectedPhoto.title}
+              className="w-full h-auto rounded-lg max-h-[80vh] object-contain mx-auto"
+            />
+            {selectedPhoto.title && (
+              <p className="text-center text-xs text-stone-300 mt-3">{selectedPhoto.title}</p>
+            )}
           </div>
-        )}
-
-        {/* Footer */}
-        <div className={`text-center pt-4 pb-12 text-xs space-y-1 ${subText}`}>
-          <p className={`font-genz font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-            ✨ GradInvite • Personalized Graduation Invitation
-          </p>
-          <p className="text-[11px] opacity-80">
-            Hành trình 4 năm rực rỡ • Chúc mừng tân cử nhân 2026
-          </p>
         </div>
-
-      </div>
+      )}
     </div>
   );
 }

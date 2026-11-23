@@ -137,7 +137,7 @@ function GuestPortal({ invitation, allThemes = THEMES, onAddWish, onUpdateGuestR
         customNote: 'Sự hiện diện của bạn là niềm vinh hạnh to lớn!',
         rsvpStatus: 'pending',
         guestCount: 1,
-        themeMode: 'dark',
+        themeMode: 'light',
       });
     }
   }, [invitation, inviteParam, guestParam]);
@@ -146,14 +146,13 @@ function GuestPortal({ invitation, allThemes = THEMES, onAddWish, onUpdateGuestR
   const guestTheme = invitation
     ? resolveGuestTheme(currentGuest, allThemes)
     : THEMES[0];
-  const isGuestLightMode = guestTheme?.mode === 'light';
+  const isGuestDarkMode = guestTheme?.mode === 'dark';
 
   if (!invitation || !currentGuest) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-slate-50 flex items-center justify-center p-6">
-        <div className="px-5 py-3.5 rounded-2xl bg-white border border-sky-100 shadow-lg shadow-sky-500/10 text-slate-700 font-genz text-sm flex items-center gap-3">
-          <span className="w-2.5 h-2.5 rounded-full bg-sky-500 animate-ping" />
-          <span className="font-semibold">Đang mở thiệp mời cá nhân hóa...</span>
+      <div className="min-h-screen bg-[#f1ede6] flex items-center justify-center p-6">
+        <div className="text-stone-600 text-xs uppercase tracking-[0.2em] font-medium">
+          Đang mở thiệp mời...
         </div>
       </div>
     );
@@ -161,48 +160,31 @@ function GuestPortal({ invitation, allThemes = THEMES, onAddWish, onUpdateGuestR
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans selection:bg-sky-200 selection:text-sky-900 ${
-        isGuestLightMode ? 'bg-slate-50' : 'bg-slate-950'
+      className={`min-h-screen flex flex-col font-sans selection:bg-stone-200 selection:text-stone-900 ${
+        isGuestDarkMode ? 'bg-[#0e1014]' : 'bg-[#f1ede6]'
       }`}
     >
-      {/* VIP Guest Top Banner */}
-      <header
-        className={`backdrop-blur-md border-b px-4 py-2.5 text-xs flex items-center justify-between shadow-xs ${
-          isGuestLightMode
-            ? 'bg-white/90 border-sky-100 text-slate-700'
-            : 'bg-slate-900/90 border-white/10 text-sky-100'
-        }`}
-      >
-        <div className="flex items-center gap-2 truncate">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-          <span className={`font-bold font-genz truncate ${isGuestLightMode ? 'text-slate-900' : 'text-white'}`}>
-            Thiệp mời dành riêng cho: {currentGuest.name}
-          </span>
-          <span
-            className={`hidden sm:inline-block px-2 py-0.5 rounded-full font-mono text-[10px] font-bold border ${
-              isGuestLightMode
-                ? 'bg-sky-50 text-sky-700 border-sky-200'
-                : 'bg-sky-500/20 text-sky-300 border-sky-500/35'
-            }`}
-          >
-            {currentGuest.inviteCode || currentGuest.id}
-          </span>
-        </div>
-
-        {onNavigateToHome && (
+      {/* Minimal Return Bar */}
+      {onNavigateToHome && (
+        <header
+          className={`px-4 pt-3 text-xs flex items-center justify-between max-w-xl w-full mx-auto ${
+            isGuestDarkMode ? 'text-stone-400' : 'text-stone-500'
+          }`}
+        >
           <button
             onClick={onNavigateToHome}
-            className={`text-[11px] font-semibold cursor-pointer shrink-0 transition-colors ml-2 flex items-center gap-1 px-2.5 py-1 rounded-lg ${
-              isGuestLightMode
-                ? 'text-sky-700 hover:bg-sky-50'
-                : 'text-sky-300 hover:text-white hover:bg-white/10'
+            className={`text-[11px] font-medium cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
+              isGuestDarkMode ? 'hover:text-stone-200' : 'hover:text-stone-900'
             }`}
           >
             <Home className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Trang Chủ Sự Kiện</span>
+            <span>Trang sự kiện</span>
           </button>
-        )}
-      </header>
+          <span className="text-[11px] truncate max-w-[200px]">
+            {currentGuest.name}
+          </span>
+        </header>
+      )}
 
       {/* Dedicated Guest View */}
       <main className="flex-1">
