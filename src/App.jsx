@@ -293,51 +293,16 @@ function GuestPortal({
   }
 
   const isSpecialRomantic = currentGuest?.themeId === ROMANTIC_SPECIAL_TEMPLATE_ID;
-  const guestAccent = guestTheme?.accentColor || '#1e3a5f';
-  const guestSecondary = guestTheme?.secondaryColor || guestAccent;
 
   return (
-    <div
-      className={`min-h-screen flex flex-col font-sans selection:bg-slate-200 selection:text-slate-900 ${
-        isSpecialRomantic ? 'bg-[#fff9fa]' : isGuestDarkMode ? 'bg-[#0e1014]' : 'bg-[#f3f5f9]'
-      }`}
-      style={
-        isSpecialRomantic || isGuestDarkMode
-          ? undefined
-          : {
-              backgroundImage: `radial-gradient(ellipse at 50% 0%, ${guestAccent}18 0%, transparent 65%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)`
-            }
-      }
-    >
-      {/* Minimal Return Bar (safe-area + >= 44px touch targets) */}
-      {onNavigateToHome && (
-        <header
-          className={`invitation-shell px-4 pt-2 sm:pt-3 safe-area-top text-sm flex items-center justify-between gap-3 ${
-            isGuestDarkMode && !isSpecialRomantic ? 'text-stone-300' : 'text-stone-700'
-          }`}
-        >
-          <button
-            type="button"
-            onClick={onNavigateToHome}
-            className={`min-h-[44px] min-w-[44px] px-3 py-2 -ml-3 rounded-lg text-sm font-medium cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
-              isGuestDarkMode && !isSpecialRomantic ? 'hover:text-stone-100 hover:bg-white/5' : 'hover:text-stone-900 hover:bg-white/70'
-            }`}
-          >
-            <Home className="w-4 h-4" />
-            <span>Trang sự kiện</span>
-          </button>
-          <span className="text-sm font-medium truncate max-w-[180px] sm:max-w-[260px]">
-            {currentGuest.name}
-          </span>
-        </header>
-      )}
-
-      {/* Dedicated Guest View */}
-      <main className="flex-1">
+    <div className="min-h-screen flex flex-col font-sans selection:bg-slate-200 selection:text-slate-900">
+      {/* Dedicated Guest View (tự đồng bộ toàn bộ nền & thanh điều hướng theo theme đang chọn) */}
+      <main className="flex-1 flex flex-col">
         {isSpecialRomantic ? (
           <RomanticSpecialInvite
             invitation={invitation}
             currentGuest={currentGuest}
+            onNavigateToHome={onNavigateToHome}
             onOpenExportModal={() => setIsExportModalOpen(true)}
             onUpdateGuestRsvp={(id, status, count) =>
               onUpdateGuestRsvp(id, status, count, currentGuest.inviteCode)
@@ -351,6 +316,7 @@ function GuestPortal({
             invitation={invitation}
             currentGuest={currentGuest}
             theme={guestTheme}
+            onNavigateToHome={onNavigateToHome}
             onOpenExportModal={() => setIsExportModalOpen(true)}
             onUpdateGuestRsvp={(id, status, count) =>
               onUpdateGuestRsvp(id, status, count, currentGuest.inviteCode)

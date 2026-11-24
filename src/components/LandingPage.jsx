@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   MapPin,
@@ -32,6 +32,14 @@ export default function LandingPage({
   const [wishMessage, setWishMessage] = useState('');
   const [isWishSent, setIsWishSent] = useState(false);
   const [mySentWishes, setMySentWishes] = useState([]);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 16);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const calendarTitle = `Lễ Tốt Nghiệp Cử Nhân: ${graduate.fullName || ''}`;
   const calendarDesc = `Tham dự Lễ trao bằng tốt nghiệp của ${graduate.fullName || ''} tại ${ceremony.venueName || ''}.`;
@@ -111,22 +119,33 @@ export default function LandingPage({
         backgroundImage: `radial-gradient(ellipse at 50% 0%, ${accentColor}18 0%, transparent 65%), radial-gradient(circle at 100% 100%, ${secondaryColor}12 0%, transparent 55%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)`
       }}
     >
-      {/* Minimal Editorial Header (safe-area + landscape compact <=12% height + 44px touch targets) */}
-      <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b safe-area-top" style={{ borderColor: `${accentColor}20` }}>
+      {/* Smooth Theme-Blended Editorial Header */}
+      <header
+        className={`sticky top-0 z-40 transition-all duration-300 safe-area-top border-b ${
+          isScrolled
+            ? 'bg-white/80 backdrop-blur-md shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)]'
+            : 'bg-transparent border-transparent'
+        }`}
+        style={
+          isScrolled
+            ? { borderColor: `${accentColor}22`, backgroundColor: 'rgba(255,255,255,0.82)' }
+            : { borderColor: 'transparent' }
+        }
+      >
         <div className="invitation-shell px-4 sm:px-8 h-14 sm:h-16 landscape-compact-header-inner flex items-center justify-between gap-2 sm:gap-4">
           <a href="#top" className="font-editorial text-sm sm:text-lg font-bold tracking-tight text-slate-900 truncate min-h-[44px] inline-flex items-center">
             {graduate.fullName || 'Lễ Tốt Nghiệp 2026'}
           </a>
 
           <nav className="hidden sm:flex items-center gap-1 text-sm font-medium text-slate-700">
-            <a href="#ceremony" className="inline-flex items-center min-h-[44px] px-3 rounded-lg hover:bg-slate-100/70 hover:text-slate-900 transition-colors">Thông tin</a>
-            <a href="#lookup" className="inline-flex items-center min-h-[44px] px-3 rounded-lg hover:bg-slate-100/70 hover:text-slate-900 transition-colors">Mở thiệp</a>
-            <a href="#wishes" className="inline-flex items-center min-h-[44px] px-3 rounded-lg hover:bg-slate-100/70 hover:text-slate-900 transition-colors">Lời chúc</a>
+            <a href="#ceremony" className="inline-flex items-center min-h-[44px] px-3 rounded-lg hover:bg-white/60 hover:text-slate-900 transition-colors">Thông tin</a>
+            <a href="#lookup" className="inline-flex items-center min-h-[44px] px-3 rounded-lg hover:bg-white/60 hover:text-slate-900 transition-colors">Mở thiệp</a>
+            <a href="#wishes" className="inline-flex items-center min-h-[44px] px-3 rounded-lg hover:bg-white/60 hover:text-slate-900 transition-colors">Lời chúc</a>
           </nav>
 
           <a
             href="#lookup"
-            className="inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-4 py-2 rounded-lg text-white text-sm font-semibold transition-opacity hover:opacity-90 shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-4 py-2 rounded-xl text-white text-sm font-semibold shadow-sm transition-all hover:opacity-90 shrink-0"
             style={{ backgroundColor: accentColor }}
           >
             <span>Mở thiệp</span>
@@ -134,22 +153,22 @@ export default function LandingPage({
         </div>
       </header>
 
-      <main id="top" className="invitation-shell px-4 sm:px-8 py-8 sm:py-14 space-y-12 safe-area-bottom">
+      <main id="top" className="invitation-shell px-4 sm:px-8 pt-4 pb-8 sm:pt-8 sm:pb-14 space-y-12 safe-area-bottom">
         {/* Main Editorial Invitation Card */}
         <article
           className="bg-white border rounded-2xl shadow-[0_25px_70px_-12px_rgba(15,23,42,0.18),0_10px_25px_-5px_rgba(15,23,42,0.08),0_1px_3px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/[0.06] overflow-hidden"
           style={{ borderColor: `${accentColor}38` }}
         >
           <div
-            className="h-1.5 w-full"
-            style={{ background: `linear-gradient(90deg, ${accentColor}, ${secondaryColor})` }}
+            className="h-1 w-full opacity-85"
+            style={{ background: `linear-gradient(90deg, transparent 0%, ${accentColor} 30%, ${secondaryColor} 70%, transparent 100%)` }}
           />
 
           {/* Hero Section */}
           <section
             className="px-5 sm:px-14 pt-10 sm:pt-16 pb-10 text-center"
             style={{
-              background: `linear-gradient(180deg, ${accentColor}0c 0%, #ffffff 42%)`
+              background: `linear-gradient(180deg, ${accentColor}10 0%, ${secondaryColor}06 24%, #ffffff 58%)`
             }}
           >
             {graduate.school && (

@@ -4,7 +4,6 @@ import QRCode from 'qrcode';
 import {
   Download,
   X,
-  Sparkles,
   GraduationCap,
   Calendar,
   MapPin,
@@ -13,9 +12,23 @@ import {
   Check,
   Smartphone,
   Square,
-  FileText
+  FileText,
+  Sun,
+  Moon,
+  Heart
 } from 'lucide-react';
-import { getGuestInvitationUrl } from '../utils/inviteHelper';
+import { getGuestInvitationUrl, joinCleanParts } from '../utils/inviteHelper';
+import { ROMANTIC_PALETTES, ROMANTIC_SPECIAL_TEMPLATE_ID } from '../data/mockData';
+
+function parseSpecialConfig(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
 
 export default function CardExportModal({
   isOpen,
@@ -25,51 +38,69 @@ export default function CardExportModal({
   theme
 }) {
   const cardRef = useRef(null);
-  const [aspectRatio, setAspectRatio] = useState('story'); // 'story' (9:16), 'square' (1:1), 'classic' (5:7)
+  const [aspectRatio, setAspectRatio] = useState('classic'); // 'story' (9:16), 'square' (1:1), 'classic' (5:7)
+  const [exportMode, setExportMode] = useState(() =>
+    theme?.mode === 'dark' ? 'dark' : 'light'
+  );
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
-  const { graduate, ceremony } = invitation;
+  const { graduate = {}, ceremony = {} } = invitation || {};
+  const isRomanticSpecial =
+    currentGuest?.themeId === ROMANTIC_SPECIAL_TEMPLATE_ID ||
+    currentGuest?.template_id === ROMANTIC_SPECIAL_TEMPLATE_ID;
+  const special = parseSpecialConfig(currentGuest?.specialConfig || currentGuest?.special_config);
+  const romanticPalette =
+    ROMANTIC_PALETTES.find((p) => p.id === special.paletteId) || ROMANTIC_PALETTES[0];
 
-  // Generate dynamic QR Code for the guest's link
   useEffect(() => {
-    if (isOpen) {
-      const shareUrl = getGuestInvitationUrl(currentGuest);
-      QRCode.toDataURL(shareUrl, {
-        width: 250,
-        margin: 1,
-        color: {
-          dark: '#0f172a',
-          light: '#ffffff',
-        },
-      })
-        .then((url) => setQrCodeDataUrl(url))
-        .catch((err) => console.error('QR code generation error:', err));
-    }
-  }, [isOpen, currentGuest]);
+    setExportMode(theme?.mode === 'dark' ? 'dark' : 'light');
+  }, [theme?.mode, currentGuest?.id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const shareUrl = getGuestInvitationUrl(currentGuest);
+    QRCode.toDataURL(shareUrl, {
+      width: 260,
+      margin: 1,
+      color: {
+        dark: isRomanticSpecial ? romanticPalette.seal : '#0f172a',
+        light: '#ffffff'
+      }
+    })
+      .then((url) => setQrCodeDataUrl(url))
+      .catch((err) => console.error('QR code generation error:', err));
+  }, [isOpen, currentGuest, isRomanticSpecial, romanticPalette.seal]);
 
   if (!isOpen) return null;
 
-  const handleDownloadImage = async () => {
+  const buildFilename = (ext) => {
+    const guestSlug = (currentGuest?.name || 'thiep-moi')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || 'khach-moi';
+    const gradSlug = (graduate.fullName || 'tot-nghiep').trim().replace(/\s+/g, '-');
+    return `Thiep-Tot-Nghiep-${gradSlug}-${guestSlug}.${ext}`;
+  };
+
+  const handleDownloadImage = async (format = 'png') => {
     if (!cardRef.current) return;
     setIsExporting(true);
-
     try {
-      // Use pixelRatio 2 or 3 for crystal clear print quality
-      const dataUrl = await toPng(cardRef.current, {
+      const options = {
         cacheBust: true,
-        pixelRatio: 2.5,
-        quality: 0.98,
-      });
-
-      const guestSlug = (currentGuest?.name || 'thiep-moi')
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '-');
-      const filename = `Thiep-Tot-Nghiep-${graduate.fullName.replace(/\s+/g, '-')}-${guestSlug}.png`;
+        pixelRatio: 3,
+        quality: 0.96
+      };
+      const dataUrl =
+        format === 'jpeg'
+          ? await toJpeg(cardRef.current, options)
+          : await toPng(cardRef.current, options);
 
       const link = document.createElement('a');
-      link.download = filename;
+      link.download = buildFilename(format === 'jpeg' ? 'jpg' : 'png');
       link.href = dataUrl;
       link.click();
     } catch (err) {
@@ -87,258 +118,351 @@ export default function CardExportModal({
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  const formattedDate = new Date(ceremony.date).toLocaleDateString('vi-VN', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric'
-  });
+  const formattedDate = ceremony.date
+    ? new Date(`${ceremony.date}T12:00:00+07:00`).toLocaleDateString('vi-VN', {
+        weekday: 'long',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone: 'Asia/Ho_Chi_Minh'
+      })
+    : '';
 
-  const isGenZ = theme.id.startsWith('genz');
-  const cardBgStyle = theme.isCustom
-    ? (theme.mode === 'light'
-        ? `linear-gradient(145deg, #ffffff 0%, ${theme.accentColor}18 50%, #f1f5f9 100%)`
-        : `linear-gradient(145deg, #020617 0%, ${theme.accentColor}28 50%, #0f172a 100%)`)
-    : theme.id === 'genz-holographic'
-    ? 'linear-gradient(145deg, #1a0b2e 0%, #2f1254 50%, #0d1e38 100%)'
-    : theme.id === 'genz-matcha'
-    ? 'linear-gradient(145deg, #05261b 0%, #0a3d2b 50%, #0e2b1f 100%)'
-    : theme.id === 'genz-boarding-pass'
-    ? 'linear-gradient(145deg, #090e17 0%, #122033 50%, #08101a 100%)'
-    : theme.id === 'genz-retro-film'
-    ? 'linear-gradient(145deg, #2c1a11 0%, #3d2314 50%, #1c110b 100%)'
-    : 'linear-gradient(145deg, #090d16 0%, #101c36 50%, #0a0f1d 100%)';
+  const accent = isRomanticSpecial ? romanticPalette.accent : theme?.accentColor || '#1e3a5f';
+  const secondary = isRomanticSpecial
+    ? romanticPalette.secondary
+    : theme?.secondaryColor || accent;
+  const isDarkCard = !isRomanticSpecial && exportMode === 'dark';
+
+  const cardSurfaceStyle = isRomanticSpecial
+    ? {
+        background: romanticPalette.pageBg,
+        color: romanticPalette.textPrimary,
+        border: `1.5px solid ${romanticPalette.accent}45`
+      }
+    : isDarkCard
+    ? {
+        background: `radial-gradient(ellipse at 50% 0%, ${accent}22 0%, transparent 60%), linear-gradient(160deg, #13161f 0%, #0e1017 100%)`,
+        color: '#f8fafc',
+        border: `1.5px solid ${accent}45`
+      }
+    : {
+        background: `radial-gradient(ellipse at 50% 0%, ${accent}14 0%, transparent 55%), linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)`,
+        color: '#0f172a',
+        border: `1.5px solid ${accent}38`
+      };
+
+  const cardInnerBorder = isDarkCard ? 'rgba(255,255,255,0.12)' : `${accent}26`;
+  const mutedTextColor = isRomanticSpecial
+    ? romanticPalette.textMuted
+    : isDarkCard
+    ? '#cbd5e1'
+    : '#475569';
+  const subtleBoxStyle = isDarkCard
+    ? { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.12)' }
+    : { backgroundColor: `${accent}0a`, borderColor: `${accent}26` };
+
+  const recipientDisplay = isRomanticSpecial
+    ? special.petName?.trim() || currentGuest?.name || 'Người Thương'
+    : currentGuest?.name || 'Quý Khách';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/70 backdrop-blur-md overflow-y-auto font-sans">
-      <div className="relative w-full max-w-4xl bg-white border border-sky-100 rounded-3xl shadow-2xl overflow-hidden my-auto">
-        
-        {/* Header Bar - White & Light Sky Blue */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-sky-100 bg-sky-50/60">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-sky-500" />
-            <h3 className="text-base font-black text-slate-900 font-genz">Xuất Ảnh Thiệp Mời Độ Phân Giải Cao (2K)</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/65 backdrop-blur-md overflow-y-auto safe-area-x safe-area-bottom font-sans">
+      <div className="relative w-full max-w-4xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[94vh] flex flex-col">
+        {/* Header Bar */}
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-3 border-b border-slate-200/80 bg-white/95 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0"
+              style={{ backgroundColor: accent }}
+            >
+              {isRomanticSpecial ? <Heart className="w-4 h-4 fill-white/30" /> : <Download className="w-4 h-4" />}
+            </span>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate font-editorial">
+              Lưu & In Ảnh Thiệp Mời (Ultra HD)
+            </h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-sky-100/60 cursor-pointer transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 text-slate-500 hover:text-slate-900 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors shrink-0"
+            aria-label="Đóng cửa sổ xuất ảnh"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
-          {/* Left Controls & Export Settings */}
+        <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start overflow-y-auto">
+          {/* Left Controls */}
           <div className="lg:col-span-4 space-y-5">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                1. Chọn Tỉ Lệ Khung Hình:
+                1. Chọn tỉ lệ ảnh thiệp
               </label>
               <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAspectRatio('story')}
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                    aspectRatio === 'story'
-                      ? 'bg-sky-500 text-white border-sky-500 font-bold shadow-sm'
-                      : 'bg-sky-50/50 border-sky-200 text-slate-600 hover:bg-sky-100'
-                  }`}
-                >
-                  <Smartphone className="w-5 h-5 mx-auto mb-1" />
-                  <div className="text-xs">Story (9:16)</div>
-                  <div className="text-[10px] opacity-80">Zalo / Insta</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAspectRatio('square')}
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                    aspectRatio === 'square'
-                      ? 'bg-sky-500 text-white border-sky-500 font-bold shadow-sm'
-                      : 'bg-sky-50/50 border-sky-200 text-slate-600 hover:bg-sky-100'
-                  }`}
-                >
-                  <Square className="w-5 h-5 mx-auto mb-1" />
-                  <div className="text-xs">Vuông (1:1)</div>
-                  <div className="text-[10px] opacity-80">Gửi tin nhắn</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAspectRatio('classic')}
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                    aspectRatio === 'classic'
-                      ? 'bg-sky-500 text-white border-sky-500 font-bold shadow-sm'
-                      : 'bg-sky-50/50 border-sky-200 text-slate-600 hover:bg-sky-100'
-                  }`}
-                >
-                  <FileText className="w-5 h-5 mx-auto mb-1" />
-                  <div className="text-xs">Thiệp In (5:7)</div>
-                  <div className="text-[10px] opacity-80">In ấn giấy</div>
-                </button>
+                {[
+                  { id: 'classic', icon: FileText, label: 'Thiệp In', sub: '5:7' },
+                  { id: 'story', icon: Smartphone, label: 'Story', sub: '9:16' },
+                  { id: 'square', icon: Square, label: 'Vuông', sub: '1:1' }
+                ].map((opt) => {
+                  const IconComp = opt.icon;
+                  const active = aspectRatio === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setAspectRatio(opt.id)}
+                      className={`min-h-[44px] p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                        active
+                          ? 'text-white border-transparent font-bold shadow-sm'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                      style={active ? { backgroundColor: accent } : undefined}
+                    >
+                      <IconComp className="w-4 h-4 mx-auto mb-1" />
+                      <div className="text-xs font-semibold">{opt.label}</div>
+                      <div className="text-xs opacity-85">{opt.sub}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Recipient info badge */}
-            <div className="p-3.5 rounded-2xl bg-sky-50/60 border border-sky-100 space-y-1 text-xs">
-              <span className="text-slate-500 font-medium">Đang xuất thiệp cho:</span>
-              <div className="font-black text-sky-800 text-sm font-genz">
-                {currentGuest?.salutation || 'Kính mời'} {currentGuest?.name || 'Quý Khách'}
+            {!isRomanticSpecial && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  2. Phong cách nền thiệp in
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExportMode('light')}
+                    className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                      exportMode === 'light'
+                        ? 'bg-amber-50 border-amber-400 text-amber-950 ring-1 ring-amber-300'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Sun className="w-4 h-4 text-amber-500" />
+                    <span>Giấy Trắng Sáng</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExportMode('dark')}
+                    className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                      exportMode === 'dark'
+                        ? 'bg-slate-900 border-slate-900 text-white'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Moon className="w-4 h-4" />
+                    <span>Nền Tối Sang Trọng</span>
+                  </button>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-500">
-                Mã QR trên thiệp sẽ tự động dẫn đến trang web thiệp tương tác đích danh của khách này.
+            )}
+
+            {/* Recipient Info */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1 text-xs sm:text-sm">
+              <span className="text-slate-500 font-medium block text-xs">Đang xuất thiệp cho:</span>
+              <div className="font-bold text-slate-900 font-editorial text-base">
+                {currentGuest?.salutation || 'Trân trọng kính mời'} {currentGuest?.name || 'Quý Khách'}
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Mã QR trên ảnh dẫn thẳng tới thiệp mời trực tuyến, bản đồ và lịch trình của khách này.
               </p>
             </div>
 
             {/* Export Buttons */}
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2.5 pt-1">
               <button
-                onClick={handleDownloadImage}
+                type="button"
+                onClick={() => handleDownloadImage('png')}
                 disabled={isExporting}
-                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:brightness-105 active:scale-98 text-white font-black text-sm shadow-md shadow-sky-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all font-genz"
+                className="w-full min-h-[44px] py-3 px-4 rounded-xl text-white font-semibold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-60"
+                style={{ backgroundColor: accent }}
               >
-                <Download className="w-5 h-5" />
-                {isExporting ? 'Đang Render Ảnh Nét Cao...' : 'Tải Xuống Ảnh PNG (Ultra HD)'}
+                <Download className="w-4 h-4" />
+                <span>{isExporting ? 'Đang tạo ảnh...' : 'Tải xuống PNG (Nét cao)'}</span>
               </button>
 
-              <button
-                onClick={handleCopyLink}
-                className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-sky-50 text-slate-700 text-xs font-bold border border-sky-200 flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm"
-              >
-                {isCopied ? <Check className="w-4 h-4 text-emerald-500" /> : <Share2 className="w-4 h-4 text-sky-500" />}
-                {isCopied ? 'Đã sao chép link!' : 'Sao chép link web thiệp'}
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadImage('jpeg')}
+                  disabled={isExporting}
+                  className="min-h-[44px] py-2.5 px-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Tải JPG (Nhẹ)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="min-h-[44px] py-2.5 px-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  {isCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
+                  <span>{isCopied ? 'Đã chép' : 'Chép link'}</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Right Live Card Canvas to be captured */}
-          <div className="lg:col-span-8 flex justify-center items-center bg-slate-950 p-4 sm:p-6 rounded-2xl overflow-hidden border border-slate-800/80">
+          {/* Right Live Printable Card Canvas */}
+          <div className="lg:col-span-8 flex justify-center items-center bg-[#f1f4f9] p-3 sm:p-6 rounded-2xl border border-slate-200/80 overflow-hidden">
             <div
               ref={cardRef}
               id="graduation-printable-card"
-              className={`relative overflow-hidden text-center shadow-2xl transition-all duration-300 ${
+              className={`relative overflow-hidden text-center rounded-2xl shadow-[0_24px_60px_-14px_rgba(15,23,42,0.22)] transition-all duration-300 flex flex-col justify-between ${
                 aspectRatio === 'story'
-                  ? 'w-[360px] min-h-[640px]'
+                  ? 'w-full max-w-[360px] min-h-[580px] sm:min-h-[620px]'
                   : aspectRatio === 'square'
-                  ? 'w-[420px] min-h-[420px]'
-                  : 'w-[380px] min-h-[532px]'
+                  ? 'w-full max-w-[400px] min-h-[380px] sm:min-h-[400px]'
+                  : 'w-full max-w-[380px] min-h-[500px] sm:min-h-[532px]'
               }`}
               style={{
-                background: cardBgStyle,
-                color: '#f8fafc',
-                padding: '28px 24px',
-                border: `2px solid ${theme.accentColor || '#ec4899'}88`,
-                boxShadow: `0 0 30px ${theme.accentColor || '#ec4899'}33`
+                ...cardSurfaceStyle,
+                padding: aspectRatio === 'square' ? '22px 22px' : '28px 24px'
               }}
             >
-              {/* Luxury / Gen Z Frame Ornaments */}
-              <div className="absolute top-2 left-2 right-2 bottom-2 border border-white/10 pointer-events-none rounded-lg"></div>
-              
-              {/* Top Banner */}
-              <div className="space-y-1 mb-3">
-                <div className="inline-flex items-center gap-1.5 text-[10px] tracking-widest uppercase font-bold"
-                  style={{ color: theme.accentColor || '#ec4899' }}
-                >
-                  <GraduationCap className="w-3.5 h-3.5" />
-                  {graduate.school}
-                </div>
-                <div className="text-[13px] font-black tracking-widest uppercase font-genz text-white">
-                  THƯ MỜI LỄ TỐT NGHIỆP CỬ NHÂN
-                </div>
-              </div>
-
-              {/* Personalized Recipient Tag */}
-              <div className="my-2.5 py-1.5 px-3.5 rounded-xl border inline-block max-w-[90%] shadow-md"
+              {/* Soft top gradient wash */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 h-1 opacity-90"
                 style={{
-                  backgroundColor: `${theme.accentColor}18`,
-                  borderColor: `${theme.accentColor}55`
+                  background: `linear-gradient(90deg, transparent 0%, ${accent} 30%, ${secondary} 70%, transparent 100%)`
                 }}
+              />
+
+              {/* Fine inner stationery frame */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-2.5 rounded-xl border"
+                style={{ borderColor: cardInnerBorder }}
+              />
+
+              {/* Masthead */}
+              <div className="relative z-10 space-y-1.5">
+                <div
+                  className="inline-flex items-center justify-center gap-1.5 text-xs tracking-[0.12em] uppercase font-semibold"
+                  style={{ color: accent }}
+                >
+                  {isRomanticSpecial ? (
+                    <Heart className="w-3.5 h-3.5 fill-current" />
+                  ) : (
+                    <GraduationCap className="w-4 h-4" />
+                  )}
+                  <span>{graduate.school}</span>
+                </div>
+                {(graduate.faculty || graduate.classBatch) && (
+                  <p className="text-xs" style={{ color: mutedTextColor }}>
+                    {joinCleanParts([graduate.faculty, graduate.classBatch])}
+                  </p>
+                )}
+                <h4 className="text-sm font-editorial font-bold tracking-[0.1em] uppercase pt-1">
+                  Thư Mời Lễ Tốt Nghiệp Cử Nhân
+                </h4>
+              </div>
+
+              {/* Recipient Salutation */}
+              <div
+                className="relative z-10 my-2.5 py-2 px-4 rounded-xl border mx-auto max-w-[92%]"
+                style={subtleBoxStyle}
               >
-                <div className="text-[9px] uppercase tracking-wider font-extrabold font-genz"
-                  style={{ color: theme.accentColor }}
+                <div
+                  className="text-xs uppercase tracking-[0.12em] font-semibold"
+                  style={{ color: accent }}
                 >
-                  {currentGuest?.salutation || 'Hú le • Kính mời'}
+                  {currentGuest?.salutation || 'Trân trọng kính mời'}
                 </div>
-                <div className="text-sm font-black text-white truncate font-genz">
-                  {currentGuest?.name || 'Quý Khách & Bạn Bè'}
+                <div
+                  className={`${
+                    isRomanticSpecial ? 'font-handwriting text-2xl mt-0.5' : 'font-editorial text-lg font-bold mt-0.5'
+                  } truncate`}
+                >
+                  {recipientDisplay}
                 </div>
               </div>
 
-              {/* Graduate Photo */}
-              <div className="my-2">
-                <div className="w-24 h-24 rounded-full p-1 shadow-xl mx-auto"
-                  style={{
-                    background: `linear-gradient(135deg, ${theme.accentColor}, #a855f7, #06b6d4)`
-                  }}
-                >
-                  <img
-                    src={graduate.avatarUrl}
-                    alt={graduate.fullName}
-                    className="w-full h-full object-cover rounded-full filter brightness-105"
-                    crossOrigin="anonymous"
-                  />
-                </div>
+              {/* Portrait + Graduate Info */}
+              <div className="relative z-10 space-y-1.5 my-1">
+                {graduate.avatarUrl && (
+                  <div
+                    className={`mx-auto p-1 rounded-full border ${
+                      aspectRatio === 'square' ? 'w-20 h-20' : 'w-24 h-24'
+                    }`}
+                    style={{ borderColor: `${accent}45`, backgroundColor: '#ffffff' }}
+                  >
+                    <img
+                      src={graduate.avatarUrl}
+                      alt={graduate.fullName}
+                      className="w-full h-full object-cover rounded-full"
+                      crossOrigin="anonymous"
+                    />
+                  </div>
+                )}
+
+                <h2 className="text-lg sm:text-xl font-editorial font-bold uppercase tracking-tight pt-1">
+                  {graduate.fullName}
+                </h2>
+                {(graduate.degree || graduate.honor) && (
+                  <div className="text-xs font-semibold" style={{ color: accent }}>
+                    {joinCleanParts([graduate.degree, graduate.honor])}
+                  </div>
+                )}
               </div>
 
-              {/* Graduate Name & Degree */}
-              <h2 className="text-lg font-black text-white tracking-wide mt-1 font-genz">
-                {graduate.fullName}
-              </h2>
-              <div className="text-xs font-bold mt-0.5"
-                style={{ color: theme.accentColor }}
+              {/* Event Time & Venue (A4 + A5 uniform) */}
+              <div
+                className="relative z-10 my-2.5 py-2.5 px-3.5 rounded-xl border text-left space-y-1.5 text-xs"
+                style={subtleBoxStyle}
               >
-                {graduate.degree}
-              </div>
-              {graduate.honor && (
-                <div className="inline-block mt-1 text-[9px] font-black px-2.5 py-0.5 rounded-full border shadow-sm"
-                  style={{
-                    backgroundColor: `${theme.accentColor}25`,
-                    borderColor: `${theme.accentColor}66`,
-                    color: '#ffffff'
-                  }}
-                >
-                  {graduate.honor}
+                <div className="flex items-start gap-2">
+                  <Calendar className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: accent }} />
+                  <span className="font-semibold capitalize leading-snug">
+                    {formattedDate} · Có mặt từ {ceremony.time || '07:30'}
+                    {ceremony.endExpected ? ` – ${ceremony.endExpected}` : ''}
+                  </span>
                 </div>
-              )}
-
-              {/* Event Time & Venue */}
-              <div className="my-3 py-2 px-3 rounded-xl bg-white/5 border border-white/10 text-left space-y-1.5 text-[11px]">
-                <div className="flex items-center gap-2 text-slate-200">
-                  <Calendar className="w-3.5 h-3.5 shrink-0" style={{ color: theme.accentColor }} />
-                  <span className="font-bold text-white capitalize">{formattedDate} • {ceremony.time}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-200">
-                  <MapPin className="w-3.5 h-3.5 shrink-0" style={{ color: theme.accentColor }} />
-                  <span className="truncate">{ceremony.venueName}</span>
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: accent }} />
+                  <span className="leading-snug" style={{ color: mutedTextColor }}>
+                    <strong style={{ color: cardSurfaceStyle.color }}>{ceremony.venueName}</strong>
+                    {ceremony.address ? ` · ${ceremony.address}` : ''}
+                  </span>
                 </div>
               </div>
 
-              {/* QR Code and Footer */}
-              <div className="mt-3 pt-2 border-t border-white/10 flex items-center justify-between px-2 text-left">
-                <div>
-                  <div className="text-[10px] font-black font-genz text-white">Quét mã QR</div>
-                  <div className="text-[8px] text-slate-300 leading-tight">
-                    Mở thiệp online, xem bản đồ<br />và gửi lời chúc mừng ✨
+              {/* QR & Closing Footer */}
+              <div
+                className="relative z-10 pt-2.5 border-t flex items-center justify-between gap-3 text-left"
+                style={{ borderColor: cardInnerBorder }}
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="text-xs font-bold">
+                    {isRomanticSpecial && special.coupleInitials
+                      ? `${special.coupleInitials} · Quét mã mở thiệp`
+                      : 'Quét mã mở thiệp'}
+                  </div>
+                  <div className="text-xs leading-snug" style={{ color: mutedTextColor }}>
+                    Xem bản đồ, lịch trình & xác nhận tham dự
                   </div>
                 </div>
 
                 {qrCodeDataUrl ? (
-                  <div className="p-1 bg-white rounded-lg shadow">
+                  <div className="p-1 bg-white rounded-lg border border-slate-200/80 shadow-xs shrink-0">
                     <img src={qrCodeDataUrl} alt="QR Code" className="w-12 h-12" />
                   </div>
                 ) : (
-                  <QrCode className="w-10 h-10" style={{ color: theme.accentColor }} />
+                  <QrCode className="w-11 h-11 shrink-0" style={{ color: accent }} />
                 )}
               </div>
             </div>
           </div>
-
         </div>
-
       </div>
     </div>
   );
 }
-

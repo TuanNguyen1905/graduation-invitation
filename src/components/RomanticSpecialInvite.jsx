@@ -17,7 +17,8 @@ import {
   X,
   Sparkles,
   Check,
-  Compass
+  Compass,
+  Home
 } from 'lucide-react';
 import CountdownTimer from './CountdownTimer';
 import { ROMANTIC_PALETTES } from '../data/mockData';
@@ -182,6 +183,7 @@ function RevealOnScroll({ children, className = '', reducedMotion = false, delay
 export default function RomanticSpecialInvite({
   invitation,
   currentGuest,
+  onNavigateToHome,
   onOpenExportModal,
   onUpdateGuestRsvp,
   onUnlockedGuest,
@@ -624,8 +626,40 @@ export default function RomanticSpecialInvite({
         reducedMotion={reducedMotion}
       />
 
-      {/* Top Controls (Music + Gyro + Replay Envelope + Export) */}
-      <div className="invitation-shell relative z-20 mb-4 flex flex-wrap items-center justify-end gap-2">
+      {/* Row 1: Separate Return Bar (Trang sự kiện | Tên khách mời) synced with romantic palette */}
+      {onNavigateToHome && (
+        <header className="invitation-shell relative z-20 mb-2 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onNavigateToHome}
+            className="min-h-[44px] min-w-[44px] px-3 py-2 -ml-3 rounded-lg text-xs sm:text-sm font-medium cursor-pointer transition-colors inline-flex items-center gap-1.5 hover:bg-white/60"
+            style={{ color: palette.textMuted }}
+          >
+            <Home className="w-4 h-4 shrink-0" style={{ color: palette.accent }} />
+            <span>Trang sự kiện</span>
+          </button>
+
+          {currentGuest?.name && (
+            <span
+              className="text-xs sm:text-sm font-semibold truncate max-w-[180px] sm:max-w-[260px]"
+              style={{ color: palette.textPrimary }}
+            >
+              {currentGuest.name}
+            </span>
+          )}
+        </header>
+      )}
+
+      {/* Row 2: Top Controls (Music + Gyro + Replay Envelope + Export) */}
+      <div className="invitation-shell relative z-20 mb-4 flex items-center justify-between gap-2">
+        <span
+          className="hidden sm:inline text-xs uppercase tracking-[0.14em] font-semibold"
+          style={{ color: palette.accent }}
+        >
+          Thiệp mời
+        </span>
+
+        <div className="flex flex-wrap items-center justify-end w-full sm:w-auto gap-2">
         {hasMusic && (
           <button
             type="button"
@@ -660,7 +694,7 @@ export default function RomanticSpecialInvite({
           className="inline-flex items-center gap-1.5 min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-full bg-white/90 border text-xs sm:text-sm font-medium shadow-xs cursor-pointer"
           style={{ borderColor: `${palette.accent}35`, color: palette.textPrimary }}
         >
-          <Mail className="w-4 h-4" />
+          <Mail className="w-4 h-4" style={{ color: palette.accent }} />
           <span>Phong bì</span>
         </button>
 
@@ -668,13 +702,14 @@ export default function RomanticSpecialInvite({
           <button
             type="button"
             onClick={onOpenExportModal}
-            className="inline-flex items-center gap-1.5 min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-full bg-white/90 border text-xs sm:text-sm font-medium shadow-xs cursor-pointer"
-            style={{ borderColor: `${palette.accent}35`, color: palette.textPrimary }}
+            className="inline-flex items-center gap-1.5 min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-full text-white text-xs sm:text-sm font-semibold shadow-sm cursor-pointer transition-opacity hover:opacity-90"
+            style={{ backgroundColor: palette.accent }}
           >
             <Download className="w-4 h-4" />
             <span>Lưu ảnh</span>
           </button>
         )}
+        </div>
       </div>
 
       {/* Main Letter Card with optional subtle Gyroscope Tilt */}
@@ -688,14 +723,14 @@ export default function RomanticSpecialInvite({
         }}
       >
         <div
-          className="h-2 w-full"
-          style={{ background: `linear-gradient(90deg, ${palette.accent}, ${palette.secondary}, ${palette.accent})` }}
+          className="h-1 w-full opacity-90"
+          style={{ background: `linear-gradient(90deg, transparent 0%, ${palette.accent} 30%, ${palette.secondary} 70%, transparent 100%)` }}
         />
 
         {/* C2.2 Handwritten Opening & Personal Message */}
         <section
           className="px-5 sm:px-14 pt-12 sm:pt-16 pb-10 text-center"
-          style={{ background: `linear-gradient(180deg, ${palette.envelope} 0%, #ffffff 55%)` }}
+          style={{ background: `linear-gradient(180deg, ${palette.envelope} 0%, #ffffff 62%)` }}
         >
           <p className="school-balanced uppercase tracking-[0.14em] font-semibold" style={{ color: palette.accent }}>
             {graduate.school}

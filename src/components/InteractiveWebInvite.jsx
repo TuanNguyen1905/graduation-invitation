@@ -10,7 +10,8 @@ import {
   Sun,
   Moon,
   Lock,
-  ArrowUpRight
+  ArrowUpRight,
+  Home
 } from 'lucide-react';
 import CountdownTimer from './CountdownTimer';
 import EnvelopeModal from './EnvelopeModal';
@@ -23,6 +24,7 @@ export default function InteractiveWebInvite({
   invitation,
   currentGuest,
   theme,
+  onNavigateToHome,
   onOpenExportModal,
   onUpdateGuestRsvp,
   onAddWish,
@@ -132,7 +134,10 @@ export default function InteractiveWebInvite({
   // Clean Tinted-White Backdrop + Theme Glow / Charcoal Dark Mode Palette Tokens
   const outerBg = isDarkMode ? 'bg-[#0e1014] text-stone-100' : 'bg-[#f3f5f9] text-slate-900';
   const outerLightStyle = isDarkMode
-    ? undefined
+    ? {
+        backgroundColor: '#0e1014',
+        backgroundImage: `radial-gradient(ellipse at 50% 0%, ${accentColor}1c 0%, transparent 58%)`
+      }
     : {
         backgroundColor: '#f3f5f9',
         backgroundImage: `radial-gradient(ellipse at 50% 0%, ${accentColor}18 0%, transparent 65%), radial-gradient(circle at 100% 100%, ${secondaryColor}12 0%, transparent 55%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)`
@@ -164,12 +169,14 @@ export default function InteractiveWebInvite({
 
   const renderHeroSection = () => (
     <section
-      className={`py-10 sm:py-14 px-6 sm:px-12 ${textAlign}`}
+      className={`py-10 sm:py-14 px-6 sm:px-12 ${textAlign} transition-colors duration-300`}
       style={
         isDarkMode
-          ? undefined
+          ? {
+              background: `linear-gradient(180deg, ${accentColor}16 0%, #161920 48%)`
+            }
           : {
-              background: `linear-gradient(180deg, ${accentColor}0c 0%, #ffffff 42%)`
+              background: `linear-gradient(180deg, ${accentColor}10 0%, ${secondaryColor}06 24%, #ffffff 58%)`
             }
       }
     >
@@ -642,7 +649,7 @@ export default function InteractiveWebInvite({
 
   return (
     <div
-      className={`min-h-screen ${outerBg} transition-colors duration-300 py-4 sm:py-10 px-4 safe-area-x safe-area-bottom font-sans`}
+      className={`min-h-screen flex-1 ${outerBg} transition-colors duration-300 pt-2 sm:pt-5 pb-8 sm:pb-12 px-4 safe-area-x safe-area-top safe-area-bottom font-sans`}
       style={outerLightStyle}
     >
       {!hasOpenedEnvelope && (
@@ -654,9 +661,41 @@ export default function InteractiveWebInvite({
         />
       )}
 
-      {/* Minimal Utility Strip above the invitation sheet (always >= 44x44px touch targets & readable labels at 320px) */}
+      {/* Row 1: Return Bar (Trang sự kiện | Tên khách mời) - synced with active theme */}
+      {onNavigateToHome && (
+        <header
+          className={`invitation-shell mb-2 flex items-center justify-between gap-3 transition-colors duration-300 ${
+            isDarkMode ? 'text-stone-300' : 'text-slate-700'
+          }`}
+        >
+          <button
+            type="button"
+            onClick={onNavigateToHome}
+            className={`min-h-[44px] min-w-[44px] px-3 py-2 -ml-3 rounded-lg text-xs sm:text-sm font-medium cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
+              isDarkMode ? 'hover:text-white hover:bg-white/5' : 'hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Home className="w-4 h-4 shrink-0" style={{ color: accentColor }} />
+            <span>Trang sự kiện</span>
+          </button>
+
+          {currentGuest?.name && (
+            <span
+              className="text-xs sm:text-sm font-semibold truncate max-w-[180px] sm:max-w-[260px]"
+              style={{ color: isDarkMode ? '#f5f5f4' : '#0f172a' }}
+            >
+              {currentGuest.name}
+            </span>
+          )}
+        </header>
+      )}
+
+      {/* Row 2: Utility Strip above the invitation sheet (Thiệp mời | Tối / Phong bì / Lưu ảnh) */}
       <div className="invitation-shell mb-4 flex items-center justify-between gap-2">
-        <span className={`hidden sm:inline text-xs uppercase tracking-[0.14em] font-semibold ${mutedColor}`}>
+        <span
+          className="hidden sm:inline text-xs uppercase tracking-[0.14em] font-semibold"
+          style={{ color: accentColor }}
+        >
           Thiệp mời
         </span>
 
@@ -664,28 +703,38 @@ export default function InteractiveWebInvite({
           <button
             type="button"
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg border text-xs sm:text-sm font-medium transition-colors cursor-pointer ${
+            className={`inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-300 cursor-pointer ${
               isDarkMode
-                ? 'border-white/15 text-stone-200 hover:bg-white/5'
-                : 'border-slate-300/80 bg-white/95 text-slate-800 hover:bg-white shadow-xs'
+                ? 'bg-white/[0.04] text-stone-100 hover:bg-white/[0.09]'
+                : 'bg-white/90 backdrop-blur-md text-slate-800 hover:bg-white shadow-xs'
             }`}
+            style={{
+              borderColor: isDarkMode ? `${accentColor}40` : `${accentColor}2e`
+            }}
             title={isDarkMode ? 'Chuyển sang nền sáng' : 'Chuyển sang nền tối'}
           >
-            {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {isDarkMode ? (
+              <Sun className="w-4 h-4" style={{ color: accentColor }} />
+            ) : (
+              <Moon className="w-4 h-4" style={{ color: accentColor }} />
+            )}
             <span>{isDarkMode ? 'Sáng' : 'Tối'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => setHasOpenedEnvelope(false)}
-            className={`inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg border text-xs sm:text-sm font-medium transition-colors cursor-pointer ${
+            className={`inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-300 cursor-pointer ${
               isDarkMode
-                ? 'border-white/15 text-stone-200 hover:bg-white/5'
-                : 'border-slate-300/80 bg-white/95 text-slate-800 hover:bg-white shadow-xs'
+                ? 'bg-white/[0.04] text-stone-100 hover:bg-white/[0.09]'
+                : 'bg-white/90 backdrop-blur-md text-slate-800 hover:bg-white shadow-xs'
             }`}
+            style={{
+              borderColor: isDarkMode ? `${accentColor}40` : `${accentColor}2e`
+            }}
             title="Xem lại phong bì"
           >
-            <Mail className="w-4 h-4" />
+            <Mail className="w-4 h-4" style={{ color: accentColor }} />
             <span>Phong bì</span>
           </button>
 
@@ -693,11 +742,8 @@ export default function InteractiveWebInvite({
             <button
               type="button"
               onClick={onOpenExportModal}
-              className={`inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg border text-xs sm:text-sm font-medium transition-colors cursor-pointer ${
-                isDarkMode
-                  ? 'border-white/15 text-stone-200 hover:bg-white/5'
-                  : 'border-slate-300/80 bg-white/95 text-slate-800 hover:bg-white shadow-xs'
-              }`}
+              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-xl text-white text-xs sm:text-sm font-semibold shadow-sm transition-opacity hover:opacity-90 cursor-pointer"
+              style={{ backgroundColor: accentColor }}
               title="Tải ảnh thiệp mời"
             >
               <Download className="w-4 h-4" />
@@ -709,14 +755,14 @@ export default function InteractiveWebInvite({
 
       {/* Single Continuous Fine-Stationery Invitation Sheet */}
       <article
-        className={`relative invitation-shell rounded-2xl overflow-hidden ${sheetBg}`}
+        className={`relative invitation-shell rounded-2xl overflow-hidden transition-all duration-300 ${sheetBg}`}
         style={sheetStyle}
       >
-        {/* Top tone bar harmonized with theme */}
+        {/* Top tone accent smoothed into hero */}
         <div
-          className="h-1.5 w-full"
+          className="h-1 w-full opacity-85"
           style={{
-            background: `linear-gradient(90deg, ${accentColor}, ${secondaryColor})`
+            background: `linear-gradient(90deg, transparent 0%, ${accentColor} 30%, ${secondaryColor} 70%, transparent 100%)`
           }}
         />
 
