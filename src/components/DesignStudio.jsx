@@ -460,10 +460,10 @@ export default function DesignStudio({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Preview as which guest */}
-          <div className="flex items-center gap-2 bg-sky-50/80 px-3 py-1.5 rounded-xl border border-sky-200 text-xs shadow-sm">
-            <span className="text-slate-500 font-medium">Đang xem theo:</span>
+          <div className="flex items-center gap-2 bg-sky-50/80 px-3 min-h-[44px] rounded-xl border border-sky-200 text-xs shadow-sm max-w-full">
+            <span className="text-slate-500 font-medium shrink-0">Xem:</span>
             <select
               value={currentGuest?.id || ''}
               onChange={(e) => {
@@ -476,11 +476,11 @@ export default function DesignStudio({
                   }
                 }
               }}
-              className="bg-transparent text-sky-700 font-bold focus:outline-none cursor-pointer"
+              className="bg-transparent text-sky-700 font-bold focus:outline-none cursor-pointer min-h-[40px] max-w-[160px] sm:max-w-none truncate"
             >
               {guests.map((g) => (
                 <option key={g.id} value={g.id} className="bg-white text-slate-900">
-                  {g.salutation} {g.name} ({g.gender === 'female' ? '👩 Nữ' : g.gender === 'male' ? '👨 Nam' : '👥 Nhóm'})
+                  {g.salutation} {g.name}
                 </option>
               ))}
             </select>
@@ -488,25 +488,25 @@ export default function DesignStudio({
 
           <button
             onClick={onSwitchToGuestView}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-sky-50 text-sky-700 text-xs font-bold border border-sky-200 cursor-pointer shadow-sm transition-all"
+            className="flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-sky-700 text-xs font-bold border border-sky-200 cursor-pointer shadow-sm transition-all"
           >
             <Eye className="w-4 h-4 text-sky-500" />
-            Trang Web Khách Mời
+            <span>Xem Thử</span>
           </button>
 
           <button
             onClick={onOpenExportModal}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:brightness-105 text-white text-xs font-black shadow-md shadow-sky-500/20 cursor-pointer transition-all"
+            className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:brightness-105 text-white text-xs font-black shadow-md shadow-sky-500/20 cursor-pointer transition-all"
           >
             <Download className="w-4 h-4" />
-            Xuất Ảnh (2K)
+            <span>Xuất Ảnh (2K)</span>
           </button>
 
-          {/* Nút Lưu Toàn Bộ Cập Nhật vào SQLite */}
+          {/* Nút Lưu Toàn Bộ Cập Nhật vào DB */}
           <button
             onClick={handleSaveAllChanges}
             disabled={isSaving}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white text-xs font-black shadow-md transition-all cursor-pointer font-genz active:scale-95 ${
+            className={`flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-xl text-white text-xs font-black shadow-md transition-all cursor-pointer font-genz active:scale-95 ${
               saveStatus === 'saved'
                 ? 'bg-emerald-600 shadow-emerald-500/25 ring-2 ring-emerald-300'
                 : saveStatus === 'error'
@@ -559,11 +559,11 @@ export default function DesignStudio({
             </div>
           )}
 
-          {/* Navigation Tabs (5 Tabs with Layout First!) */}
-          <div className="grid grid-cols-5 gap-1 p-1 rounded-2xl bg-sky-50 border border-sky-100 text-xs font-bold font-genz">
+          {/* Navigation Tabs (Wrap cleanly on mobile without overflow, >=44px touch target) */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1.5 rounded-2xl bg-sky-50 border border-sky-100 text-xs font-bold font-genz">
             <button
               onClick={() => setActiveTab('layout')}
-              className={`py-2 px-1 rounded-xl transition-all text-center cursor-pointer ${
+              className={`min-h-[44px] py-2 px-2 rounded-xl transition-all text-center cursor-pointer ${
                 activeTab === 'layout' ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20' : 'text-slate-600 hover:text-sky-700 hover:bg-white/60'
               }`}
             >
@@ -571,7 +571,7 @@ export default function DesignStudio({
             </button>
             <button
               onClick={() => setActiveTab('graduate')}
-              className={`py-2 px-1 rounded-xl transition-all text-center cursor-pointer ${
+              className={`min-h-[44px] py-2 px-2 rounded-xl transition-all text-center cursor-pointer ${
                 activeTab === 'graduate' ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20' : 'text-slate-600 hover:text-sky-700 hover:bg-white/60'
               }`}
             >
@@ -579,7 +579,7 @@ export default function DesignStudio({
             </button>
             <button
               onClick={() => setActiveTab('ceremony')}
-              className={`py-2 px-1 rounded-xl transition-all text-center cursor-pointer ${
+              className={`min-h-[44px] py-2 px-2 rounded-xl transition-all text-center cursor-pointer ${
                 activeTab === 'ceremony' ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20' : 'text-slate-600 hover:text-sky-700 hover:bg-white/60'
               }`}
             >
@@ -587,7 +587,7 @@ export default function DesignStudio({
             </button>
             <button
               onClick={() => setActiveTab('theme')}
-              className={`py-2 px-1 rounded-xl transition-all text-center cursor-pointer ${
+              className={`min-h-[44px] py-2 px-2 rounded-xl transition-all text-center cursor-pointer ${
                 activeTab === 'theme' ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20' : 'text-slate-600 hover:text-sky-700 hover:bg-white/60'
               }`}
             >
@@ -595,7 +595,7 @@ export default function DesignStudio({
             </button>
             <button
               onClick={() => setActiveTab('timeline')}
-              className={`py-2 px-1 rounded-xl transition-all text-center cursor-pointer ${
+              className={`col-span-2 sm:col-span-1 min-h-[44px] py-2 px-2 rounded-xl transition-all text-center cursor-pointer ${
                 activeTab === 'timeline' ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20' : 'text-slate-600 hover:text-sky-700 hover:bg-white/60'
               }`}
             >

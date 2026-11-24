@@ -12,6 +12,13 @@ import {
   DEFAULT_REACTIONS,
   createDefaultInvitationRecord
 } from './defaults.js';
+import { generateServerInviteCode } from './invite-codes.js';
+import {
+  sanitizeGuestRecord,
+  prepareSpecialConfigForStorage,
+  checkUnlockAnswer,
+  extractPrivateMediaIds
+} from './special-guest-helper.js';
 
 function loadServiceAccountFromEnv() {
   const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -105,24 +112,6 @@ async function ensureInvitationExists(db, invId, allowAutoCreate = false) {
   return { docRef, data: initialData };
 }
 
-function sanitizePublicGuest(g) {
-  return {
-    id: g.id,
-    invite_code: g.invite_code,
-    name: g.name,
-    salutation: g.salutation,
-    relationship: g.relationship,
-    gender: g.gender || 'unisex',
-    persona: g.persona || 'energetic',
-    template_id: g.template_id || 'genz-ocean-blue',
-    theme_mode: g.theme_mode || 'light',
-    custom_theme_config: g.custom_theme_config || null,
-    custom_note: g.custom_note || null,
-    rsvp_status: g.rsvp_status || 'pending',
-    guest_count: g.guest_count || 1
-  };
-}
-
 export function createFirestoreAdapter() {
   const db = getDb();
 
@@ -130,8 +119,12 @@ export function createFirestoreAdapter() {
     kind: 'firestore',
 
     async getInvitationBundle(invId = DEFAULT_INVITATION_ID, options = {}) {
+      if (invId !== DEFAULT_INVITATION_ID) return null;
+
       const isAdmin = typeof options === 'boolean' ? options : Boolean(options?.isAdmin);
       const inviteCode = typeof options === 'object' ? (options?.inviteCode || null) : null;
+      const unlockToken = typeof options === 'object' ? (options?.unlockToken || null) : null;
+      const authSecret = typeof options === 'object' ? (options?.authSecret || '') : '';
 
       const ensured = await ensureInvitationExists(db, invId, invId === DEFAULT_INVITATION_ID);
       if (!ensured) return null;
@@ -147,7 +140,9 @@ export function createFirestoreAdapter() {
 
       if (isAdmin) {
         const guestsSnap = await db.collection('guests').where('invitation_id', '==', invId).get();
-        guests = sortByCreatedDesc(guestsSnap.docs.map((d) => d.data()));
+        guests = sortByCreatedDesc(guestsSnap.docs.map((d) => d.data())).map((g) =>
+          sanitizeGuestRecord(g, { isAdmin: true, authSecret })
+        );
         const wishesSnap = await db.collection('guestbook_wishes').where('invitation_id', '==', invId).get();
         wishes = sortByCreatedDesc(wishesSnap.docs.map((d) => d.data()));
       } else if (inviteCode) {
@@ -160,7 +155,12 @@ export function createFirestoreAdapter() {
         if (!found) {
           return { notFoundGuest: true };
         }
-        matchedGuest = sanitizePublicGuest(found);
+        matchedGuest = sanitizeGuestRecord(found, {
+          isAdmin: false,
+          inviteCode: found.invite_code,
+          unlockToken,
+          authSecret
+        });
         guests = [matchedGuest];
       }
 
@@ -222,15 +222,19 @@ export function createFirestoreAdapter() {
     async updateRsvp(guestId, { status, guestCount = 1, note = null, inviteCode = null, bypassCodeCheck = false }) {
       const ref = db.collection('guests').doc(guestId);
       const snap = await ref.get();
-      if (!snap.exists) return { ok: false, statusCode: 404, error: 'Không tìm thấy khách mời' };
-      const existing = snap.data();
+      const existing = snap.exists ? snap.data() : null;
 
       if (!bypassCodeCheck) {
+        if (!existing) {
+          return { ok: false, statusCode: 403, error: 'Mã thiệp mời không hợp lệ hoặc không khớp.' };
+        }
         const provided = String(inviteCode || '').trim().toUpperCase();
         const expected = String(existing.invite_code || '').trim().toUpperCase();
         if (!provided || !expected || provided !== expected) {
           return { ok: false, statusCode: 403, error: 'Mã thiệp mời không hợp lệ hoặc không khớp.' };
         }
+      } else if (!existing) {
+        return { ok: false, statusCode: 404, error: 'Không tìm thấy khách mời' };
       }
 
       await ref.update({
@@ -262,7 +266,7 @@ export function createFirestoreAdapter() {
       await db.collection('guestbook_wishes').doc(wishId).delete();
     },
 
-    async createGuest(payload) {
+    async createGuest(payload, authSecret = '') {
       const {
         invitationId = DEFAULT_INVITATION_ID,
         id,
@@ -275,12 +279,14 @@ export function createFirestoreAdapter() {
         persona = 'energetic',
         themeId = 'genz-ocean-blue',
         themeMode = 'dark',
-        customNote = ''
+        customNote = '',
+        specialConfig
       } = payload;
 
       const newId = id || `guest-${Date.now()}`;
-      const code = inviteCode || `INV-${name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const code = inviteCode || generateServerInviteCode(name, 8);
       const accessCode = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now().toString().slice(-4)}`;
+      const serializedSpecial = prepareSpecialConfigForStorage(specialConfig, null, authSecret);
 
       const record = {
         id: newId,
@@ -297,6 +303,7 @@ export function createFirestoreAdapter() {
         theme_mode: themeMode || 'dark',
         custom_theme_config: null,
         custom_note: customNote || null,
+        special_config: serializedSpecial,
         access_code: accessCode,
         rsvp_status: 'pending',
         guest_count: 1,
@@ -328,7 +335,7 @@ export function createFirestoreAdapter() {
 
       guestsList.forEach((item, i) => {
         const gId = item.id || `guest-bulk-${baseTime}-${i}`;
-        const gCode = item.inviteCode || `INV-${(item.name || 'GUEST').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+        const gCode = item.inviteCode || generateServerInviteCode(item.name || 'GUEST', 8);
         const gAccess = `bulk-${baseTime}-${i}`;
         const itemMode = item.themeMode || themeMode || 'dark';
         const nowIso = new Date(baseTime + i).toISOString();
@@ -453,11 +460,15 @@ export function createFirestoreAdapter() {
       return snap.size;
     },
 
-    async updateGuest(guestId, body) {
+    async updateGuest(guestId, body, authSecret = '') {
       const ref = db.collection('guests').doc(guestId);
       const snap = await ref.get();
       if (!snap.exists) return false;
       const existing = snap.data();
+
+      const nextInviteCode = body.inviteCode !== undefined && String(body.inviteCode).trim()
+        ? String(body.inviteCode).trim().toUpperCase()
+        : existing.invite_code;
 
       const nextTemplateId = body.themeId !== undefined
         ? body.themeId
@@ -467,7 +478,12 @@ export function createFirestoreAdapter() {
         ? (body.customTheme ? JSON.stringify(body.customTheme) : null)
         : existing.custom_theme_config;
 
+      const nextSpecialConfig = body.specialConfig !== undefined
+        ? prepareSpecialConfigForStorage(body.specialConfig, existing.special_config, authSecret)
+        : (existing.special_config || null);
+
       await ref.update({
+        invite_code: nextInviteCode,
         name: body.name !== undefined ? body.name : existing.name,
         email: body.email !== undefined ? (body.email || null) : existing.email,
         salutation: body.salutation !== undefined ? body.salutation : existing.salutation,
@@ -477,9 +493,64 @@ export function createFirestoreAdapter() {
         template_id: nextTemplateId,
         theme_mode: body.themeMode !== undefined ? body.themeMode : existing.theme_mode,
         custom_note: body.customNote !== undefined ? (body.customNote || null) : existing.custom_note,
-        custom_theme_config: nextCustomTheme
+        custom_theme_config: nextCustomTheme,
+        special_config: nextSpecialConfig
       });
       return true;
+    },
+
+    async regenerateGuestCode(guestId, explicitCode = null) {
+      const ref = db.collection('guests').doc(guestId);
+      const snap = await ref.get();
+      if (!snap.exists) return null;
+      const existing = snap.data();
+      const newCode = explicitCode
+        ? String(explicitCode).trim().toUpperCase()
+        : generateServerInviteCode(existing.name || 'GUEST', 8);
+      await ref.update({ invite_code: newCode });
+      return newCode;
+    },
+
+    async getGuestByInviteCode(invId = DEFAULT_INVITATION_ID, inviteCode = '') {
+      const normalizedCode = String(inviteCode || '').trim().toUpperCase();
+      if (!normalizedCode) return null;
+      const snap = await db.collection('guests').where('invitation_id', '==', invId).get();
+      return (
+        snap.docs
+          .map((d) => d.data())
+          .find((g) => g.invite_code && g.invite_code.trim().toUpperCase() === normalizedCode) || null
+      );
+    },
+
+    async verifyGuestUnlock(invId = DEFAULT_INVITATION_ID, inviteCode = '', answer = '', authSecret = '') {
+      const found = await this.getGuestByInviteCode(invId, inviteCode);
+      if (!found) return { found: false, ok: false };
+      const check = checkUnlockAnswer(found, answer, authSecret);
+      return { found: true, ok: check.ok, guest: found };
+    },
+
+    async savePrivateMedia({ id, guestId = null, mimeType, dataUrl }) {
+      await db.collection('private_media').doc(id).set({
+        id,
+        guest_id: guestId,
+        mime_type: mimeType,
+        data_url: dataUrl,
+        created_at: new Date().toISOString()
+      });
+      return id;
+    },
+
+    async getPrivateMedia(mediaId) {
+      const snap = await db.collection('private_media').doc(mediaId).get();
+      return snap.exists ? snap.data() : null;
+    },
+
+    async guestOwnsMedia(guestRow, mediaId) {
+      if (!guestRow || !mediaId) return false;
+      const referenced = extractPrivateMediaIds(guestRow.special_config);
+      if (referenced.has(mediaId)) return true;
+      const media = await this.getPrivateMedia(mediaId);
+      return Boolean(media && media.guest_id && media.guest_id === guestRow.id);
     },
 
     async applyThemeToAllGuests(invId = DEFAULT_INVITATION_ID, { themeId = 'genz-ocean-blue', themeMode = 'dark', customTheme = null }) {

@@ -22,18 +22,47 @@ export function removeVietnameseTones(str) {
   return str;
 }
 
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function randomSecureSuffix(length = 8) {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(length);
+    crypto.getRandomValues(bytes);
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+    }
+    return result;
+  }
+  let fallback = '';
+  for (let i = 0; i < length; i++) {
+    fallback += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  }
+  return fallback;
+}
+
 /**
- * Sinh mã ID duy nhất cho từng khách mời
- * Ví dụ: "Trần Tuấn Anh" -> "INV-TUANANH-7K2D"
+ * Sinh mã ID duy nhất cho từng khách mời với phần ngẫu nhiên >= 8 ký tự (A2)
+ * Ví dụ: "Trần Tuấn Anh" -> "INV-TUANANH-7K2D9M4P"
  */
-export function generateUniqueInviteCode(guestName = 'KHACH') {
+export function generateUniqueInviteCode(guestName = 'KHACH', randomLength = 8) {
   const cleanName = removeVietnameseTones(guestName)
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '')
     .slice(0, 10) || 'GUEST';
 
-  const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const randomHex = randomSecureSuffix(Math.max(8, randomLength));
   return `INV-${cleanName}-${randomHex}`;
+}
+
+/**
+ * Chuẩn hóa dấu phân cách thống nhất ' · ' (A5)
+ */
+export function joinCleanParts(parts = []) {
+  return parts
+    .filter((p) => typeof p === 'string' && p.trim().length > 0)
+    .map((p) => p.replace(/\s*[•·]\s*/g, ' · ').trim())
+    .join(' · ');
 }
 
 /**

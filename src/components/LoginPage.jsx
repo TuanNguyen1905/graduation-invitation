@@ -70,7 +70,7 @@ export default function LoginPage({ onLoginSuccess }) {
             <div className="flex items-center gap-2 mb-6">
               <Shield className="w-4 h-4 text-sky-500" />
               <span className="text-sm font-bold text-slate-700">Đăng Nhập Quản Trị</span>
-              <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 font-bold border border-sky-200">
+              <span className="ml-auto text-xs px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 font-bold border border-sky-200">
                 Admin Only
               </span>
             </div>
@@ -91,7 +91,7 @@ export default function LoginPage({ onLoginSuccess }) {
                     onChange={(e) => { setPassword(e.target.value); setError(''); }}
                     placeholder="Nhập mật khẩu..."
                     autoFocus
-                    className={`w-full pl-10 pr-11 py-3 rounded-xl border text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 ${
+                    className={`w-full min-h-[44px] pl-10 pr-12 py-3 rounded-xl border text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 ${
                       error
                         ? 'border-rose-300 bg-rose-50 text-rose-800 placeholder:text-rose-300'
                         : 'border-sky-200 bg-sky-50/60 text-slate-900 placeholder:text-slate-400 hover:border-sky-300'
@@ -100,8 +100,9 @@ export default function LoginPage({ onLoginSuccess }) {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-sky-500 transition-colors cursor-pointer"
+                    className="absolute inset-y-0 right-0 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-500 hover:text-sky-600 transition-colors cursor-pointer"
                     title={showPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
+                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
                   >
                     {showPassword
                       ? <EyeOff className="w-4 h-4" />
@@ -122,7 +123,7 @@ export default function LoginPage({ onLoginSuccess }) {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 rounded-xl font-black text-sm text-white uppercase tracking-wider transition-all shadow-md shadow-sky-500/30 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98] flex items-center justify-center gap-2"
+                className="w-full min-h-[44px] py-3.5 rounded-xl font-black text-sm text-white uppercase tracking-wider transition-all shadow-md shadow-sky-500/30 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98] flex items-center justify-center gap-2"
                 style={{
                   background: 'linear-gradient(135deg, #0ea5e9, #2563eb)',
                   boxShadow: '0 6px 20px rgba(14,165,233,0.35)',
@@ -144,10 +145,10 @@ export default function LoginPage({ onLoginSuccess }) {
 
             {/* Footer hint */}
             <div className="mt-5 pt-5 border-t border-sky-100 text-center">
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-500 leading-relaxed">
                 Chỉ dành cho người tổ chức. Người được mời hãy dùng
                 <br />
-                link cá nhân hoá <span className="font-mono text-sky-500 font-bold">?invite=INV-...</span>
+                link cá nhân hoá <span className="font-mono text-sky-600 font-bold">?invite=INV-...</span>
               </p>
             </div>
           </div>

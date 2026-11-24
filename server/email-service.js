@@ -52,8 +52,8 @@ export function generateGraduationEmailHtml({
   const faculty = graduate.faculty || '';
   const venue = ceremony.venueName || 'Hội Trường A5';
   const address = ceremony.address || 'Khuôn viên trường';
-  const date = ceremony.date || '2026-11-20';
-  const time = ceremony.time || '08:00';
+  const date = ceremony.date || '2026-11-28';
+  const time = ceremony.time || '07:30';
   const dressCode = ceremony.dressCode || 'Lịch sự / Tươi sáng';
 
   return `
@@ -87,7 +87,7 @@ export function generateGraduationEmailHtml({
                 ${graduateName}
               </div>
               <div style="display: inline-block; margin-top: 10px; padding: 4px 14px; background: rgba(255, 255, 255, 0.18); border-radius: 999px; font-size: 12px; color: #f0f9ff; font-weight: 600;">
-                ${graduateTitle} • ${school}
+                ${graduateTitle} · ${school}
               </div>
             </td>
           </tr>

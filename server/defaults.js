@@ -21,10 +21,10 @@ export const DEFAULT_LAYOUT_SETTINGS = {
 };
 
 export const DEFAULT_TIMELINE = [
-  { id: 'step-1', step_order: 1, time: '08:45', title: 'Đón khách & Chụp ảnh kỷ niệm', description: 'Đón tiếp gia đình, bạn bè và lưu giữ khoảnh khắc trước giờ làm lễ.' },
-  { id: 'step-2', step_order: 2, time: '09:00', title: 'Khai mạc Lễ Trao Bằng', description: 'Nghi thức khai mạc và diễn văn chúc mừng tân cử nhân.' },
-  { id: 'step-3', step_order: 3, time: '09:45', title: 'Nghi thức Trao Bằng Cử Nhân', description: 'Khoảnh khắc lên bục nhận tấm bằng cử nhân tốt nghiệp.' },
-  { id: 'step-4', step_order: 4, time: '11:00', title: 'Chụp ảnh tập thể & Kết thúc buổi lễ', description: 'Chụp ảnh lưu niệm cùng người thân, bạn bè tại khuôn viên trường.' }
+  { id: 'step-1', step_order: 1, time: '07:30', title: 'Đón khách, Check-in & Chụp ảnh kỷ niệm', description: 'Đón tiếp gia đình, bạn bè, check-in và lưu giữ khoảnh khắc trước giờ làm lễ.' },
+  { id: 'step-2', step_order: 2, time: '08:30', title: 'Khai mạc Lễ Trao Bằng', description: 'Nghi thức khai mạc và diễn văn chúc mừng tân cử nhân.' },
+  { id: 'step-3', step_order: 3, time: '09:30', title: 'Nghi thức Trao Bằng Cử Nhân', description: 'Khoảnh khắc lên bục nhận tấm bằng cử nhân tốt nghiệp.' },
+  { id: 'step-4', step_order: 4, time: '11:00', title: 'Chụp ảnh tập thể & Kết thúc buổi lễ', description: 'Chụp ảnh lưu niệm cùng người thân, bạn bè tại khuôn viên trường (kết thúc 11:30).' }
 ];
 
 export const DEFAULT_GALLERY = [
@@ -51,12 +51,12 @@ export function createDefaultInvitationRecord(id = DEFAULT_INVITATION_ID) {
     honor: 'quá đã rùi mọi người ơi',
     school: 'Đại Học Bách Khoa',
     faculty: 'Khoa Khoa Học & Kỹ Thuật Máy Tính',
-    class_batch: 'K22 • 2022 - 2026',
+    class_batch: 'K22 · 2022 - 2026',
     avatar_url: '/uploads/img-1794464175331-v1mjf0.jpg',
     quote: 'Sau bao mùa deadline và những ngày chạy đồ án "hết công suất", cuối cùng Tuấn cũng chính thức tốt nghiệp Bách Khoa rồi đây! 🎓',
     spotify_song: 'Thanh Xuân (Graduation Anthem) • Da LAB',
     ceremony_date: '2026-11-28',
-    ceremony_time: '09:00',
+    ceremony_time: '07:30',
     end_expected: '11:30',
     venue_name: 'Hội Trường Lớn A5',
     address: '268 Lý Thường Kiệt, Phường 14, Quận 10, TP. Hồ Chí Minh',

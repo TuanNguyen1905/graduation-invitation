@@ -101,13 +101,22 @@ export async function fetchInvitationFromApi() {
   }
 }
 
-export async function fetchGuestInvitationFromApi(inviteCode) {
+export async function fetchGuestInvitationFromApi(inviteCode, unlockToken = null) {
   const code = String(inviteCode || '').trim();
   if (!code) return { found: false, status: 400, error: 'Thiếu mã thiệp mời' };
 
   try {
-    const res = await fetch(`${API_BASE}/invitation?invite=${encodeURIComponent(code)}`);
+    const headers = unlockToken ? { 'X-Unlock-Token': unlockToken } : {};
+    const res = await fetch(`${API_BASE}/invitation?invite=${encodeURIComponent(code)}`, { headers });
     const data = await res.json();
+    if (res.status === 429) {
+      return {
+        found: false,
+        status: 429,
+        rateLimited: true,
+        error: data.error || 'Bạn đã thử sai quá nhiều lần. Vui lòng thử lại sau ít phút.'
+      };
+    }
     if (res.status === 404) {
       return { found: false, status: 404, error: data.error || 'Không tìm thấy thiệp mời với mã này.' };
     }
@@ -117,6 +126,33 @@ export async function fetchGuestInvitationFromApi(inviteCode) {
     return { found: true, status: 200, data };
   } catch (err) {
     return { found: false, status: 0, error: 'Không thể kết nối máy chủ.' };
+  }
+}
+
+export async function verifyGuestUnlockInApi(inviteCode, answer) {
+  try {
+    const res = await fetch(`${API_BASE}/guests/verify-unlock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inviteCode, answer }),
+    });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, ...data };
+  } catch (err) {
+    return { ok: false, status: 0, error: 'Không thể kết nối máy chủ.' };
+  }
+}
+
+export async function regenerateGuestCodeInApi(guestId, newInviteCode = null) {
+  try {
+    const res = await fetch(`${API_BASE}/guests/regenerate-code`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ guestId, newInviteCode }),
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Không thể kết nối máy chủ.' };
   }
 }
 
@@ -305,12 +341,17 @@ export async function updateInvitationToApi(invitationData) {
   }
 }
 
-export async function uploadImageToApi(dataUrl, filename = 'image.png') {
+export async function uploadImageToApi(dataUrl, filename = 'image.png', options = {}) {
   try {
     const res = await fetch(`${API_BASE}/upload`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ dataUrl, filename }),
+      body: JSON.stringify({
+        dataUrl,
+        filename,
+        privateMedia: Boolean(options?.privateMedia),
+        guestId: options?.guestId || null
+      }),
     });
     return await res.json();
   } catch (err) {

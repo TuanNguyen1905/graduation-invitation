@@ -7,6 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createAliyunTransporter, generateGraduationEmailHtml } from './email-service.js';
 import { DEFAULT_INVITATION_ID } from './defaults.js';
+import { sharedRateLimiter, getClientIp } from './rate-limit.js';
+import { signUnlockToken, verifyUnlockToken } from './invite-codes.js';
+import { sanitizeGuestRecord, parseSpecialConfig } from './special-guest-helper.js';
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_VERCEL_IMAGE_LENGTH = 900 * 1024; // ~900KB base64 để an toàn với giới hạn 1MB/doc của Firestore
@@ -66,7 +69,7 @@ function jsonResponse(res, statusCode, data) {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Unlock-Token'
   });
   res.end(JSON.stringify(data));
 }
@@ -109,14 +112,15 @@ export async function handleApiRequest(req, res, options = {}) {
   const {
     getAdapter,
     allowDiskUpload = false,
-    uploadsDir = ''
+    uploadsDir = '',
+    rateLimiter = sharedRateLimiter
   } = options;
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Unlock-Token'
     });
     return res.end();
   }
@@ -168,20 +172,93 @@ export async function handleApiRequest(req, res, options = {}) {
     // Lấy Database Adapter (Firestore hoặc SQLite local)
     const dbAdapter = await getAdapter();
 
-    // 1. GET /api/invitation (Public chỉ trả thông tin buổi lễ + đúng 1 khách khớp ?invite=CODE; Admin mới thấy toàn bộ)
+    // 1. GET /api/invitation (Public chỉ trả thông tin buổi lễ + đúng 1 khách khớp ?invite=CODE; có rate-limit chống brute-force theo IP)
     if (req.method === 'GET' && pathname === '/api/invitation') {
       const invId = parsedUrl.searchParams.get('id') || DEFAULT_INVITATION_ID;
       const inviteCode = (parsedUrl.searchParams.get('invite') || parsedUrl.searchParams.get('code') || '').trim() || null;
+      const unlockToken = (req.headers['x-unlock-token'] || parsedUrl.searchParams.get('unlock') || '').trim() || null;
       const isAdmin = isAuthenticated(req);
+      const clientIp = getClientIp(req);
 
-      const bundle = await dbAdapter.getInvitationBundle(invId, { isAdmin, inviteCode });
+      if (inviteCode && !isAdmin) {
+        const limitStatus = rateLimiter.isBlocked(clientIp, 'invite_lookup');
+        if (limitStatus.blocked) {
+          return jsonResponse(res, 429, {
+            error: 'Bạn đã tra cứu sai mã thiệp quá nhiều lần. Vui lòng thử lại sau ít phút.',
+            rateLimited: true,
+            retryAfterSec: limitStatus.retryAfterSec
+          });
+        }
+      }
+
+      const bundle = await dbAdapter.getInvitationBundle(invId, {
+        isAdmin,
+        inviteCode,
+        unlockToken,
+        authSecret: getAuthSecret()
+      });
       if (!bundle) {
         return jsonResponse(res, 404, { error: 'Không tìm thấy thiệp mời' });
       }
       if (bundle.notFoundGuest) {
+        if (!isAdmin) {
+          rateLimiter.recordFailure(clientIp, 'invite_lookup');
+        }
         return jsonResponse(res, 404, { error: 'Không tìm thấy thiệp mời với mã này', notFound: true });
       }
       return jsonResponse(res, 200, bundle);
+    }
+
+    // 1a. GET /api/private-media (Chỉ trả ảnh/nhạc riêng khi có mã thiệp hợp lệ + đã mở khóa nếu bật C3, hoặc Admin)
+    if (req.method === 'GET' && pathname === '/api/private-media') {
+      const mediaId = (parsedUrl.searchParams.get('id') || '').trim();
+      const inviteCode = (parsedUrl.searchParams.get('invite') || '').trim();
+      const unlockToken = (req.headers['x-unlock-token'] || parsedUrl.searchParams.get('unlock') || '').trim() || null;
+      const isAdmin = isAuthenticated(req);
+
+      if (!mediaId) {
+        return jsonResponse(res, 400, { error: 'Thiếu mã media' });
+      }
+
+      if (!isAdmin) {
+        if (!inviteCode) {
+          return jsonResponse(res, 401, { error: 'Yêu cầu mã thiệp mời để xem nội dung riêng tư.' });
+        }
+        const guest = await dbAdapter.getGuestByInviteCode(DEFAULT_INVITATION_ID, inviteCode);
+        if (!guest) {
+          return jsonResponse(res, 403, { error: 'Mã thiệp mời không hợp lệ.' });
+        }
+        const rawSpecial = parseSpecialConfig(guest.special_config);
+        const gate = rawSpecial?.unlockGate;
+        if (gate?.enabled && gate?.answerHash) {
+          const unlocked = verifyUnlockToken(unlockToken, guest.id, guest.invite_code, getAuthSecret());
+          if (!unlocked) {
+            return jsonResponse(res, 403, { error: 'Vui lòng trả lời câu hỏi mở khóa trước khi xem nội dung này.' });
+          }
+        }
+        const owns = await dbAdapter.guestOwnsMedia(guest, mediaId);
+        if (!owns) {
+          return jsonResponse(res, 403, { error: 'Không có quyền truy cập tệp riêng tư này.' });
+        }
+      }
+
+      const media = await dbAdapter.getPrivateMedia(mediaId);
+      if (!media || !media.data_url) {
+        return jsonResponse(res, 404, { error: 'Không tìm thấy tệp riêng tư.' });
+      }
+
+      const match = String(media.data_url).match(/^data:([^;]+);base64,(.+)$/);
+      const mimeType = media.mime_type || match?.[1] || 'application/octet-stream';
+      const base64Data = match ? match[2] : media.data_url;
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      res.writeHead(200, {
+        'Content-Type': mimeType,
+        'Content-Length': buffer.length,
+        'Cache-Control': 'private, max-age=3600',
+        'Access-Control-Allow-Origin': '*'
+      });
+      return res.end(buffer);
     }
 
     // 1b. POST /api/upload
@@ -189,9 +266,27 @@ export async function handleApiRequest(req, res, options = {}) {
       if (!isAuthenticated(req)) {
         return jsonResponse(res, 401, { error: 'Chưa đăng nhập. Vui lòng đăng nhập vào trang Admin.' });
       }
-      const { dataUrl, filename = 'image.png' } = await parseJsonBody(req);
+      const { dataUrl, filename = 'image.png', privateMedia = false, guestId = null } = await parseJsonBody(req);
       if (!dataUrl) {
-        return jsonResponse(res, 400, { error: 'Thiếu dữ liệu ảnh' });
+        return jsonResponse(res, 400, { error: 'Thiếu dữ liệu tệp' });
+      }
+
+      if (privateMedia) {
+        if (dataUrl.length > MAX_VERCEL_IMAGE_LENGTH) {
+          return jsonResponse(res, 400, {
+            error: 'Tệp quá lớn để lưu bảo mật (< 650KB sau nén). Vui lòng giảm kích thước ảnh/tệp.'
+          });
+        }
+        const mimeMatch = String(dataUrl).match(/^data:([^;]+);base64,/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/webp';
+        const mediaId = `pm-${crypto.randomBytes(16).toString('hex')}`;
+        await dbAdapter.savePrivateMedia({ id: mediaId, guestId, mimeType, dataUrl });
+        return jsonResponse(res, 200, {
+          success: true,
+          mediaId,
+          url: `/api/private-media?id=${mediaId}`,
+          filename
+        });
       }
 
       if (allowDiskUpload && uploadsDir) {
@@ -255,10 +350,18 @@ export async function handleApiRequest(req, res, options = {}) {
       });
     }
 
-    // 2. POST /api/rsvp (Bắt buộc kèm mã thiệp khớp với khách, trừ khi Admin cập nhật)
+    // 2. POST /api/rsvp (Bắt buộc kèm mã thiệp khớp với khách, trả 403 nếu sai/thiếu; trừ khi Admin cập nhật)
     if (req.method === 'POST' && pathname === '/api/rsvp') {
       const { guestId, inviteCode, status, guestCount, note } = await parseJsonBody(req);
       if (!guestId) return jsonResponse(res, 400, { error: 'Thiếu guestId' });
+
+      const bypassCodeCheck = isAuthenticated(req);
+      if (!bypassCodeCheck && (!inviteCode || !String(inviteCode).trim())) {
+        return jsonResponse(res, 403, {
+          success: false,
+          error: 'Yêu cầu mã thiệp mời khớp với khách để xác nhận RSVP.'
+        });
+      }
 
       const allowedStatuses = ['confirmed', 'declined', 'pending'];
       if (!allowedStatuses.includes(status)) {
@@ -266,7 +369,6 @@ export async function handleApiRequest(req, res, options = {}) {
       }
 
       const safeCount = Math.min(10, Math.max(1, Number(guestCount) || 1));
-      const bypassCodeCheck = isAuthenticated(req);
       const result = await dbAdapter.updateRsvp(guestId, {
         status,
         guestCount: safeCount,
@@ -282,6 +384,53 @@ export async function handleApiRequest(req, res, options = {}) {
         });
       }
       return jsonResponse(res, 200, { success: true, message: 'Đã cập nhật RSVP thành công!' });
+    }
+
+    // 2b. POST /api/guests/verify-unlock (Kiểm tra câu hỏi mở khóa C3 trên server, không lộ đáp án)
+    if (req.method === 'POST' && pathname === '/api/guests/verify-unlock') {
+      const clientIp = getClientIp(req);
+      const limitStatus = rateLimiter.isBlocked(clientIp, 'unlock_gate');
+      if (limitStatus.blocked) {
+        return jsonResponse(res, 429, {
+          success: false,
+          error: 'Bạn đã nhập sai đáp án quá nhiều lần. Vui lòng thử lại sau ít phút.',
+          retryAfterSec: limitStatus.retryAfterSec
+        });
+      }
+
+      const { inviteCode, answer } = await parseJsonBody(req);
+      if (!inviteCode) {
+        return jsonResponse(res, 400, { success: false, error: 'Thiếu mã thiệp mời' });
+      }
+
+      const result = await dbAdapter.verifyGuestUnlock(
+        DEFAULT_INVITATION_ID,
+        inviteCode,
+        answer,
+        getAuthSecret()
+      );
+      if (!result.found) {
+        rateLimiter.recordFailure(clientIp, 'unlock_gate');
+        return jsonResponse(res, 404, { success: false, error: 'Không tìm thấy thiệp mời' });
+      }
+      if (!result.ok) {
+        rateLimiter.recordFailure(clientIp, 'unlock_gate');
+        return jsonResponse(res, 403, { success: false, error: 'Đáp án chưa chính xác, hãy thử lại nhé!' });
+      }
+
+      const unlockToken = signUnlockToken(result.guest.id, result.guest.invite_code, getAuthSecret());
+      const unlockedGuest = sanitizeGuestRecord(result.guest, {
+        isAdmin: false,
+        inviteCode: result.guest.invite_code,
+        unlockToken,
+        authSecret: getAuthSecret()
+      });
+
+      return jsonResponse(res, 200, {
+        success: true,
+        unlockToken,
+        guest: unlockedGuest
+      });
     }
 
     // 3. POST /api/wishes
@@ -315,7 +464,7 @@ export async function handleApiRequest(req, res, options = {}) {
       const body = await parseJsonBody(req);
       if (!body.name) return jsonResponse(res, 400, { error: 'Thiếu tên khách mời' });
 
-      const created = await dbAdapter.createGuest(body);
+      const created = await dbAdapter.createGuest(body, getAuthSecret());
       return jsonResponse(res, 201, { success: true, ...created });
     }
 
@@ -399,10 +548,25 @@ export async function handleApiRequest(req, res, options = {}) {
       const guestId = body.id || body.guestId;
       if (!guestId) return jsonResponse(res, 400, { error: 'Thiếu guestId/id' });
 
-      const updated = await dbAdapter.updateGuest(guestId, body);
+      const updated = await dbAdapter.updateGuest(guestId, body, getAuthSecret());
       if (!updated) return jsonResponse(res, 404, { error: 'Không tìm thấy khách mời' });
 
       return jsonResponse(res, 200, { success: true, id: guestId });
+    }
+
+    // 4h-2. POST /api/guests/regenerate-code (Cấp mã mới >= 8 ký tự ngẫu nhiên, vô hiệu mã cũ)
+    if (req.method === 'POST' && pathname === '/api/guests/regenerate-code') {
+      if (!isAuthenticated(req)) {
+        return jsonResponse(res, 401, { error: 'Chưa đăng nhập. Vui lòng đăng nhập vào trang Admin.' });
+      }
+      const { guestId, id, newInviteCode = null } = await parseJsonBody(req);
+      const targetId = guestId || id;
+      if (!targetId) return jsonResponse(res, 400, { error: 'Thiếu guestId' });
+
+      const nextCode = await dbAdapter.regenerateGuestCode(targetId, newInviteCode);
+      if (!nextCode) return jsonResponse(res, 404, { error: 'Không tìm thấy khách mời' });
+
+      return jsonResponse(res, 200, { success: true, id: targetId, inviteCode: nextCode });
     }
 
     // 4i. POST /api/guests/apply-theme-all

@@ -27,8 +27,9 @@ import {
   X,
   Save
 } from 'lucide-react';
-import { THEMES } from '../data/mockData';
+import { THEMES, ROMANTIC_SPECIAL_TEMPLATE_ID } from '../data/mockData';
 import ShareModal from './ShareModal';
+import SpecialGuestEditor from './SpecialGuestEditor';
 import { generateUniqueInviteCode, getGuestInvitationUrl } from '../utils/inviteHelper';
 import {
   createGuestInApi,
@@ -36,6 +37,7 @@ import {
   updateGuestModeInApi,
   applyModeToAllGuestsInApi,
   updateGuestInApi,
+  regenerateGuestCodeInApi,
   deleteGuestFromApi
 } from '../services/api';
 
@@ -351,6 +353,25 @@ export default function GuestManager({
     await updateGuestInApi(updatedGuest);
     setIsSavingEdit(false);
     setEditingGuest(null);
+  };
+
+  const handleRegenerateCode = async (guestId) => {
+    if (!window.confirm('Cấp mã thiệp mới (>=8 ký tự ngẫu nhiên) và vô hiệu hóa mã cũ ngay lập tức?')) {
+      return;
+    }
+    const res = await regenerateGuestCodeInApi(guestId);
+    if (res?.success && res.inviteCode) {
+      setInvitation((prev) => ({
+        ...prev,
+        guests: prev.guests.map((g) => (g.id === guestId ? { ...g, inviteCode: res.inviteCode } : g))
+      }));
+      if (currentGuest?.id === guestId) {
+        setCurrentGuest((prev) => (prev ? { ...prev, inviteCode: res.inviteCode } : prev));
+      }
+      setEditingGuest((prev) => (prev && prev.id === guestId ? { ...prev, inviteCode: res.inviteCode } : prev));
+    } else {
+      alert(res?.error || 'Không thể cấp mã mới.');
+    }
   };
 
   const handleDeleteGuest = async (id) => {
@@ -956,14 +977,14 @@ export default function GuestManager({
                         </span>
 
                         {/* Relationship Badge */}
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">
                           {guest.relationship}
                         </span>
 
                         {/* Email Badge if present */}
                         {guest.email && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 font-mono border border-sky-100 flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-sky-500" />
+                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 font-mono border border-sky-100 flex items-center gap-1 break-all">
+                            <Mail className="w-3 h-3 text-sky-500 shrink-0" />
                             {guest.email}
                           </span>
                         )}
@@ -976,21 +997,26 @@ export default function GuestManager({
                       )}
 
                       {/* Guest URL */}
-                      <div className="text-[11px] text-sky-600 font-mono truncate max-w-md">
+                      <div className="text-xs text-sky-600 font-mono truncate max-w-full sm:max-w-md">
                         {guestUrl}
                       </div>
                     </div>
 
                     {/* Middle: Tone / Template Selector & Theme Mode Toggle */}
                     <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-                      <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-sky-200 text-xs shadow-sm">
-                        <Palette className="w-3.5 h-3.5 text-sky-500" />
-                        <span className="text-slate-500 text-[11px]">Template:</span>
+                      <div className="flex items-center gap-1.5 bg-white px-3 min-h-[44px] rounded-xl border border-sky-200 text-xs shadow-sm max-w-full">
+                        <Palette className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                        <span className="text-slate-500 text-xs shrink-0">Template:</span>
                         <select
                           value={guest.themeId || allThemes[0].id}
                           onChange={(e) => handleGuestThemeChange(guest.id, e.target.value)}
-                          className="bg-transparent text-sky-700 font-bold focus:outline-none cursor-pointer text-xs"
+                          className="bg-transparent text-sky-700 font-bold focus:outline-none cursor-pointer text-xs min-h-[40px] max-w-[160px] truncate"
                         >
+                          {guest.themeId === ROMANTIC_SPECIAL_TEMPLATE_ID && (
+                            <option value={ROMANTIC_SPECIAL_TEMPLATE_ID} className="text-rose-700">
+                              💌 Thiệp Riêng Lãng Mạn (Bespoke)
+                            </option>
+                          )}
                           {allThemes.map((t) => (
                             <option key={t.id} value={t.id} className="text-slate-900">
                               {t.isCustom ? `★ ${t.name}` : t.name}
@@ -1003,7 +1029,7 @@ export default function GuestManager({
                       <button
                         type="button"
                         onClick={() => handleToggleGuestMode(guest.id, guest.themeMode === 'light' ? 'dark' : 'light')}
-                        className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
+                        className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
                           guest.themeMode === 'light'
                             ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
                             : 'bg-slate-900 border-slate-700 text-sky-300 hover:bg-slate-800'
@@ -1013,12 +1039,12 @@ export default function GuestManager({
                         {guest.themeMode === 'light' ? (
                           <>
                             <Sun className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                            <span>☀️ Sáng</span>
+                            <span>Sáng</span>
                           </>
                         ) : (
                           <>
                             <Moon className="w-3.5 h-3.5 text-sky-400 fill-sky-400" />
-                            <span>🌙 Tối</span>
+                            <span>Tối</span>
                           </>
                         )}
                       </button>
@@ -1052,7 +1078,7 @@ export default function GuestManager({
                       {/* Copy Link Button */}
                       <button
                         onClick={() => handleCopyLink(guest)}
-                        className="p-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 text-xs font-bold border border-sky-200 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                        className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-white hover:bg-sky-50 text-slate-700 text-xs font-bold border border-sky-200 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
                         title="Sao chép link gửi cho khách"
                       >
                         {copiedId === guest.id ? (
@@ -1071,11 +1097,11 @@ export default function GuestManager({
                       {/* Share & QR Modal Trigger */}
                       <button
                         onClick={() => setShareTargetGuest(guest)}
-                        className="p-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold flex items-center gap-1 cursor-pointer shadow-sm transition-all"
+                        className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
                         title="Chia sẻ Zalo/Mess & gửi Email qua Aliyun"
                       >
                         <Mail className="w-4 h-4 text-amber-300" />
-                        <span className="text-xs hidden sm:inline">Gửi Mail / QR</span>
+                        <span className="text-xs">Gửi Mail / QR</span>
                       </button>
 
                       {/* View Invite as this guest (Dedicated Public Portal) */}
@@ -1088,7 +1114,7 @@ export default function GuestManager({
                             onSwitchToGuestView();
                           }
                         }}
-                        className="px-3 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-md transition-all font-genz"
+                        className="min-h-[44px] px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-md transition-all font-genz"
                         title="Mở giao diện mà chính người được mời sẽ nhìn thấy khi truy cập link của họ"
                       >
                         <Eye className="w-4 h-4 text-sky-200" />
@@ -1104,11 +1130,11 @@ export default function GuestManager({
                             keepCustomTheme: !!guest.customTheme,
                           })
                         }
-                        className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold border border-amber-200 flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
+                        className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold border border-amber-200 flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
                         title="Điều chỉnh thông tin, lời nhắn & giao diện của thiệp đã gửi"
                       >
                         <Edit3 className="w-4 h-4" />
-                        <span className="text-xs hidden sm:inline">Sửa thiệp</span>
+                        <span className="text-xs">Sửa thiệp</span>
                       </button>
 
                       {/* Export Card for this guest */}
@@ -1117,7 +1143,7 @@ export default function GuestManager({
                           setCurrentGuest(guest);
                           onOpenExportModal();
                         }}
-                        className="p-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-600 text-xs font-semibold border border-sky-200 flex items-center gap-1 cursor-pointer transition-all"
+                        className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-600 text-xs font-semibold border border-sky-200 flex items-center justify-center gap-1 cursor-pointer transition-all"
                         title="Xuất ảnh thiệp mời cho khách này"
                       >
                         <Download className="w-4 h-4" />
@@ -1126,7 +1152,7 @@ export default function GuestManager({
                       {/* Delete button */}
                       <button
                         onClick={() => handleDeleteGuest(guest.id)}
-                        className="p-2 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-500 cursor-pointer transition-all"
+                        className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-500 flex items-center justify-center cursor-pointer transition-all"
                         title="Xóa khách"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1144,31 +1170,40 @@ export default function GuestManager({
 
       {/* Edit Sent Invitation Modal */}
       {editingGuest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm overflow-y-auto">
           <form
             onSubmit={handleSaveEditGuest}
-            className="relative w-full max-w-xl bg-white border border-sky-200 rounded-3xl p-6 shadow-2xl space-y-4 my-auto"
+            className="relative w-full max-w-2xl bg-white border border-sky-200 rounded-3xl p-4 sm:p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto"
           >
-            <div className="flex items-start justify-between border-b border-sky-100 pb-3">
-              <div>
+            <div className="flex items-start justify-between gap-2 border-b border-sky-100 pb-3">
+              <div className="min-w-0">
                 <h3 className="text-base font-black text-slate-900 flex items-center gap-2 font-genz">
-                  <Edit3 className="w-5 h-5 text-sky-500" />
-                  Điều Chỉnh Thiệp Đã Tạo / Đã Gửi
+                  <Edit3 className="w-5 h-5 text-sky-500 shrink-0" />
+                  <span>Điều Chỉnh Thiệp Đã Tạo / Đã Gửi</span>
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Mã thiệp: <span className="font-mono font-bold text-sky-700">{editingGuest.inviteCode || editingGuest.id}</span> — Thay đổi sẽ tự động cập nhật ngay trên đường link cũ khách đang giữ.
-                </p>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1.5">
+                  <span>
+                    Mã thiệp: <span className="font-mono font-bold text-sky-700 break-all">{editingGuest.inviteCode || editingGuest.id}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRegenerateCode(editingGuest.id)}
+                    className="min-h-[36px] px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold cursor-pointer"
+                  >
+                    Cấp mã mới (≥8 ký tự)
+                  </button>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingGuest(null)}
-                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 cursor-pointer"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Tên khách mời hiển thị *</label>
                 <input
@@ -1176,7 +1211,7 @@ export default function GuestManager({
                   required
                   value={editingGuest.name || ''}
                   onChange={(e) => setEditingGuest((prev) => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-sky-50/50 border border-sky-200 text-slate-900 font-bold focus:outline-none focus:border-sky-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-sky-50/50 border border-sky-200 text-slate-900 font-bold focus:outline-none focus:border-sky-500"
                 />
               </div>
 
@@ -1186,7 +1221,7 @@ export default function GuestManager({
                   type="text"
                   value={editingGuest.salutation || ''}
                   onChange={(e) => setEditingGuest((prev) => ({ ...prev, salutation: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-sky-50/50 border border-sky-200 text-slate-900 font-semibold focus:outline-none focus:border-sky-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-sky-50/50 border border-sky-200 text-slate-900 font-semibold focus:outline-none focus:border-sky-500"
                 />
               </div>
 
@@ -1195,9 +1230,10 @@ export default function GuestManager({
                 <select
                   value={editingGuest.relationship || 'Bạn bè'}
                   onChange={(e) => setEditingGuest((prev) => ({ ...prev, relationship: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-sky-50/50 border border-sky-200 text-slate-900 font-semibold focus:outline-none focus:border-sky-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-sky-50/50 border border-sky-200 text-slate-900 font-semibold focus:outline-none focus:border-sky-500"
                 >
                   <option value="Bạn bè">Bạn bè</option>
+                  <option value="Người yêu">Người yêu</option>
                   <option value="Thầy cô">Thầy cô</option>
                   <option value="Gia đình">Gia đình</option>
                   <option value="Đồng nghiệp">Đồng nghiệp</option>
@@ -1212,7 +1248,7 @@ export default function GuestManager({
                   value={editingGuest.email || ''}
                   onChange={(e) => setEditingGuest((prev) => ({ ...prev, email: e.target.value }))}
                   placeholder="email@domain.com"
-                  className="w-full px-3 py-2 rounded-xl bg-sky-50/50 border border-sky-200 text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-sky-50/50 border border-sky-200 text-slate-900 font-medium focus:outline-none focus:border-sky-500"
                 />
               </div>
 
@@ -1227,8 +1263,11 @@ export default function GuestManager({
                       keepCustomTheme: false,
                     }))
                   }
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-sky-300 text-sky-900 font-bold focus:outline-none focus:border-sky-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-white border border-sky-300 text-sky-900 font-bold focus:outline-none focus:border-sky-500"
                 >
+                  <option value={ROMANTIC_SPECIAL_TEMPLATE_ID}>
+                    💌 Thiệp Riêng Lãng Mạn (Bespoke 3D)
+                  </option>
                   {allThemes.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.isSavedTemplate ? `📌 [Đã lưu] ${t.name}` : t.name}
@@ -1243,7 +1282,7 @@ export default function GuestManager({
                   <button
                     type="button"
                     onClick={() => setEditingGuest((prev) => ({ ...prev, themeMode: 'light' }))}
-                    className={`py-2 px-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 cursor-pointer ${
+                    className={`min-h-[44px] py-2 px-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 cursor-pointer ${
                       editingGuest.themeMode === 'light'
                         ? 'bg-amber-50 border-amber-400 text-amber-900 ring-1 ring-amber-300'
                         : 'bg-white border-slate-200 text-slate-600'
@@ -1255,7 +1294,7 @@ export default function GuestManager({
                   <button
                     type="button"
                     onClick={() => setEditingGuest((prev) => ({ ...prev, themeMode: 'dark' }))}
-                    className={`py-2 px-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 cursor-pointer ${
+                    className={`min-h-[44px] py-2 px-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 cursor-pointer ${
                       editingGuest.themeMode !== 'light'
                         ? 'bg-slate-900 border-sky-500 text-sky-300 ring-1 ring-sky-400'
                         : 'bg-white border-slate-200 text-slate-600'
@@ -1268,20 +1307,30 @@ export default function GuestManager({
               </div>
             </div>
 
+            {editingGuest.themeId === ROMANTIC_SPECIAL_TEMPLATE_ID && (
+              <SpecialGuestEditor
+                guestId={editingGuest.id}
+                config={editingGuest.specialConfig}
+                onChange={(nextSpecialConfig) =>
+                  setEditingGuest((prev) => ({ ...prev, specialConfig: nextSpecialConfig }))
+                }
+              />
+            )}
+
             {editingGuest.keepCustomTheme && editingGuest.customTheme && (
-              <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-800 flex items-center justify-between">
+              <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-800 flex items-center justify-between">
                 <span>🎨 Thiệp này đang dùng bộ màu tùy biến riêng từ Studio.</span>
                 <button
                   type="button"
                   onClick={() => setEditingGuest((prev) => ({ ...prev, keepCustomTheme: false }))}
-                  className="underline font-bold cursor-pointer hover:text-indigo-950"
+                  className="underline font-bold cursor-pointer hover:text-indigo-950 min-h-[40px] px-2"
                 >
                   Dùng lại Template chuẩn
                 </button>
               </div>
             )}
 
-            <div className="text-xs">
+            <div className="text-xs sm:text-sm">
               <label className="block font-bold text-slate-700 mb-1">Lời nhắn riêng hiển thị trên thiệp</label>
               <textarea
                 rows={3}
@@ -1295,16 +1344,16 @@ export default function GuestManager({
               <button
                 type="button"
                 onClick={() => setEditingGuest(null)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold cursor-pointer"
+                className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-bold cursor-pointer"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={isSavingEdit}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50 font-genz"
+                className="min-h-[44px] px-5 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50 font-genz"
               >
-                <Save className="w-3.5 h-3.5" />
+                <Save className="w-4 h-4" />
                 <span>{isSavingEdit ? 'Đang lưu...' : 'Lưu Thay Đổi Thiệp'}</span>
               </button>
             </div>

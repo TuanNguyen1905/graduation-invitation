@@ -98,11 +98,11 @@ export default function WishManager({ invitation, setInvitation }) {
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.relationship && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-100 font-bold">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-100 font-bold">
                               {item.relationship}
                             </span>
                           )}
-                          <span className="text-[10px] font-mono text-slate-400">
+                          <span className="text-xs font-mono text-slate-500">
                             {item.time || 'Vừa xong'}
                           </span>
                         </div>
@@ -112,7 +112,7 @@ export default function WishManager({ invitation, setInvitation }) {
                     <button
                       type="button"
                       onClick={() => handleDeleteWish(item.id)}
-                      className="p-2 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-500 cursor-pointer transition-all"
+                      className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-500 cursor-pointer transition-all"
                       title="Xóa lời chúc này"
                     >
                       <Trash2 className="w-4 h-4" />

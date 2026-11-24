@@ -3,7 +3,14 @@
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_INVITATION_ID, DEFAULT_REACTIONS } from './defaults.js';
+import { DEFAULT_INVITATION_ID } from './defaults.js';
+import { generateServerInviteCode } from './invite-codes.js';
+import {
+  sanitizeGuestRecord,
+  prepareSpecialConfigForStorage,
+  checkUnlockAnswer,
+  extractPrivateMediaIds
+} from './special-guest-helper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +42,13 @@ export async function createSqliteAdapter() {
       is_builtin INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS private_media (
+      id TEXT PRIMARY KEY,
+      guest_id TEXT,
+      mime_type TEXT NOT NULL,
+      data_url TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const columns = db.prepare('PRAGMA table_info(guests)').all().map((c) => c.name);
@@ -46,6 +60,7 @@ export async function createSqliteAdapter() {
     { name: 'template_id', def: "TEXT DEFAULT 'genz-ocean-blue'" },
     { name: 'theme_mode', def: "TEXT DEFAULT 'dark'" },
     { name: 'custom_theme_config', def: 'TEXT' },
+    { name: 'special_config', def: 'TEXT' },
     { name: 'view_count', def: 'INTEGER DEFAULT 0' },
     { name: 'first_viewed_at', def: 'DATETIME' }
   ];
@@ -62,31 +77,17 @@ export async function createSqliteAdapter() {
     CREATE INDEX IF NOT EXISTS idx_templates_invitation_id ON templates(invitation_id, created_at DESC);
   `);
 
-function sanitizePublicGuest(g) {
-  return {
-    id: g.id,
-    invite_code: g.invite_code,
-    name: g.name,
-    salutation: g.salutation,
-    relationship: g.relationship,
-    gender: g.gender || 'unisex',
-    persona: g.persona || 'energetic',
-    template_id: g.template_id || 'genz-ocean-blue',
-    theme_mode: g.theme_mode || 'light',
-    custom_theme_config: g.custom_theme_config || null,
-    custom_note: g.custom_note || null,
-    rsvp_status: g.rsvp_status || 'pending',
-    guest_count: g.guest_count || 1
-  };
-}
-
   return {
     kind: 'sqlite',
     dbPath,
 
     async getInvitationBundle(invId = DEFAULT_INVITATION_ID, options = {}) {
+      if (invId !== DEFAULT_INVITATION_ID) return null;
+
       const isAdmin = typeof options === 'boolean' ? options : Boolean(options?.isAdmin);
       const inviteCode = typeof options === 'object' ? (options?.inviteCode || null) : null;
+      const unlockToken = typeof options === 'object' ? (options?.unlockToken || null) : null;
+      const authSecret = typeof options === 'object' ? (options?.authSecret || '') : '';
 
       const inv = db.prepare('SELECT * FROM invitations WHERE id = ?').get(invId);
       if (!inv) return null;
@@ -100,7 +101,8 @@ function sanitizePublicGuest(g) {
       let wishes = [];
 
       if (isAdmin) {
-        guests = db.prepare('SELECT * FROM guests WHERE invitation_id = ? ORDER BY created_at DESC').all(invId);
+        const rawGuests = db.prepare('SELECT * FROM guests WHERE invitation_id = ? ORDER BY created_at DESC').all(invId);
+        guests = rawGuests.map((g) => sanitizeGuestRecord(g, { isAdmin: true, authSecret }));
         wishes = db.prepare('SELECT * FROM guestbook_wishes WHERE invitation_id = ? ORDER BY created_at DESC').all(invId);
       } else if (inviteCode) {
         const normalizedCode = inviteCode.trim().toUpperCase();
@@ -110,7 +112,12 @@ function sanitizePublicGuest(g) {
         if (!found) {
           return { notFoundGuest: true };
         }
-        matchedGuest = sanitizePublicGuest(found);
+        matchedGuest = sanitizeGuestRecord(found, {
+          isAdmin: false,
+          inviteCode: found.invite_code,
+          unlockToken,
+          authSecret
+        });
         guests = [matchedGuest];
       }
 
@@ -185,16 +192,18 @@ function sanitizePublicGuest(g) {
 
     async updateRsvp(guestId, { status, guestCount = 1, note = null, inviteCode = null, bypassCodeCheck = false }) {
       const existing = db.prepare('SELECT id, invite_code FROM guests WHERE id = ?').get(guestId);
-      if (!existing) {
-        return { ok: false, statusCode: 404, error: 'Không tìm thấy khách mời' };
-      }
 
       if (!bypassCodeCheck) {
+        if (!existing) {
+          return { ok: false, statusCode: 403, error: 'Mã thiệp mời không hợp lệ hoặc không khớp.' };
+        }
         const provided = String(inviteCode || '').trim().toUpperCase();
         const expected = String(existing.invite_code || '').trim().toUpperCase();
         if (!provided || !expected || provided !== expected) {
           return { ok: false, statusCode: 403, error: 'Mã thiệp mời không hợp lệ hoặc không khớp.' };
         }
+      } else if (!existing) {
+        return { ok: false, statusCode: 404, error: 'Không tìm thấy khách mời' };
       }
 
       db.prepare(`
@@ -218,7 +227,7 @@ function sanitizePublicGuest(g) {
       db.prepare('DELETE FROM guestbook_wishes WHERE id = ?').run(wishId);
     },
 
-    async createGuest(payload) {
+    async createGuest(payload, authSecret = '') {
       const {
         invitationId = DEFAULT_INVITATION_ID,
         id,
@@ -231,17 +240,19 @@ function sanitizePublicGuest(g) {
         persona = 'energetic',
         themeId = 'genz-ocean-blue',
         themeMode = 'dark',
-        customNote
+        customNote,
+        specialConfig
       } = payload;
 
       const newId = id || `guest-${Date.now()}`;
-      const code = inviteCode || `INV-${name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const code = inviteCode || generateServerInviteCode(name, 8);
       const accessCode = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now().toString().slice(-4)}`;
+      const serializedSpecial = prepareSpecialConfigForStorage(specialConfig, null, authSecret);
 
       db.prepare(`
-        INSERT INTO guests (id, invitation_id, invite_code, name, email, salutation, relationship, gender, persona, template_id, theme_mode, custom_note, access_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(newId, invitationId, code, name, email || null, salutation, relationship, gender, persona, themeId, themeMode || 'dark', customNote || null, accessCode);
+        INSERT INTO guests (id, invitation_id, invite_code, name, email, salutation, relationship, gender, persona, template_id, theme_mode, custom_note, special_config, access_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(newId, invitationId, code, name, email || null, salutation, relationship, gender, persona, themeId, themeMode || 'dark', customNote || null, serializedSpecial, accessCode);
 
       return { id: newId, inviteCode: code, accessCode, themeMode: themeMode || 'dark' };
     },
@@ -268,7 +279,7 @@ function sanitizePublicGuest(g) {
         for (let i = 0; i < guestsList.length; i++) {
           const item = guestsList[i];
           const gId = item.id || `guest-bulk-${Date.now()}-${i}`;
-          const gCode = item.inviteCode || `INV-${(item.name || 'GUEST').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+          const gCode = item.inviteCode || generateServerInviteCode(item.name || 'GUEST', 8);
           const gAccess = `bulk-${Date.now()}-${i}`;
           const itemMode = item.themeMode || themeMode || 'dark';
 
@@ -376,11 +387,14 @@ function sanitizePublicGuest(g) {
       return info.changes;
     },
 
-    async updateGuest(guestId, body) {
+    async updateGuest(guestId, body, authSecret = '') {
       const existing = db.prepare('SELECT * FROM guests WHERE id = ?').get(guestId);
       if (!existing) return false;
 
       const nextName = body.name !== undefined ? body.name : existing.name;
+      const nextInviteCode = body.inviteCode !== undefined && String(body.inviteCode).trim()
+        ? String(body.inviteCode).trim().toUpperCase()
+        : existing.invite_code;
       const nextEmail = body.email !== undefined ? (body.email || null) : existing.email;
       const nextSalutation = body.salutation !== undefined ? body.salutation : existing.salutation;
       const nextRelationship = body.relationship !== undefined ? body.relationship : existing.relationship;
@@ -392,10 +406,14 @@ function sanitizePublicGuest(g) {
       const nextCustomTheme = body.customTheme !== undefined
         ? (body.customTheme ? JSON.stringify(body.customTheme) : null)
         : existing.custom_theme_config;
+      const nextSpecialConfig = body.specialConfig !== undefined
+        ? prepareSpecialConfigForStorage(body.specialConfig, existing.special_config, authSecret)
+        : existing.special_config;
 
       db.prepare(`
         UPDATE guests
-        SET name = ?,
+        SET invite_code = ?,
+            name = ?,
             email = ?,
             salutation = ?,
             relationship = ?,
@@ -404,9 +422,11 @@ function sanitizePublicGuest(g) {
             template_id = ?,
             theme_mode = ?,
             custom_note = ?,
-            custom_theme_config = ?
+            custom_theme_config = ?,
+            special_config = ?
         WHERE id = ?
       `).run(
+        nextInviteCode,
         nextName,
         nextEmail,
         nextSalutation,
@@ -417,9 +437,55 @@ function sanitizePublicGuest(g) {
         nextThemeMode,
         nextCustomNote,
         nextCustomTheme,
+        nextSpecialConfig,
         guestId
       );
       return true;
+    },
+
+    async regenerateGuestCode(guestId, explicitCode = null) {
+      const existing = db.prepare('SELECT id, name FROM guests WHERE id = ?').get(guestId);
+      if (!existing) return null;
+      const newCode = explicitCode
+        ? String(explicitCode).trim().toUpperCase()
+        : generateServerInviteCode(existing.name || 'GUEST', 8);
+      db.prepare('UPDATE guests SET invite_code = ? WHERE id = ?').run(newCode, guestId);
+      return newCode;
+    },
+
+    async getGuestByInviteCode(invId = DEFAULT_INVITATION_ID, inviteCode = '') {
+      const normalizedCode = String(inviteCode || '').trim().toUpperCase();
+      if (!normalizedCode) return null;
+      return db
+        .prepare('SELECT * FROM guests WHERE invitation_id = ? AND UPPER(TRIM(invite_code)) = ? LIMIT 1')
+        .get(invId, normalizedCode) || null;
+    },
+
+    async verifyGuestUnlock(invId = DEFAULT_INVITATION_ID, inviteCode = '', answer = '', authSecret = '') {
+      const found = await this.getGuestByInviteCode(invId, inviteCode);
+      if (!found) return { found: false, ok: false };
+      const check = checkUnlockAnswer(found, answer, authSecret);
+      return { found: true, ok: check.ok, guest: found };
+    },
+
+    async savePrivateMedia({ id, guestId = null, mimeType, dataUrl }) {
+      db.prepare(`
+        INSERT OR REPLACE INTO private_media (id, guest_id, mime_type, data_url)
+        VALUES (?, ?, ?, ?)
+      `).run(id, guestId, mimeType, dataUrl);
+      return id;
+    },
+
+    async getPrivateMedia(mediaId) {
+      return db.prepare('SELECT * FROM private_media WHERE id = ?').get(mediaId) || null;
+    },
+
+    async guestOwnsMedia(guestRow, mediaId) {
+      if (!guestRow || !mediaId) return false;
+      const referenced = extractPrivateMediaIds(guestRow.special_config);
+      if (referenced.has(mediaId)) return true;
+      const row = db.prepare('SELECT guest_id FROM private_media WHERE id = ?').get(mediaId);
+      return Boolean(row && row.guest_id && row.guest_id === guestRow.id);
     },
 
     async applyThemeToAllGuests(invId = DEFAULT_INVITATION_ID, { themeId = 'genz-ocean-blue', themeMode = 'dark', customTheme = null }) {

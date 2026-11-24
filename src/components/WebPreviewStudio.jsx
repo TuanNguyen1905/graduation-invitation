@@ -20,6 +20,8 @@ import {
   Save
 } from 'lucide-react';
 import InteractiveWebInvite from './InteractiveWebInvite';
+import RomanticSpecialInvite from './RomanticSpecialInvite';
+import { ROMANTIC_SPECIAL_TEMPLATE_ID } from '../data/mockData';
 import { getGuestInvitationUrl } from '../utils/inviteHelper';
 import { updateGuestInApi } from '../services/api';
 
@@ -405,16 +407,26 @@ export default function WebPreviewStudio({
         {deviceMode === 'desktop' ? (
           /* Desktop / Full Width View */
           <div className="w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl border border-white/10 bg-slate-950 min-h-[85vh]">
-            <InteractiveWebInvite
-              invitation={invitation}
-              currentGuest={currentGuest}
-              theme={theme}
-              onOpenExportModal={onOpenExportModal}
-              onUpdateGuestRsvp={onUpdateGuestRsvp}
-              onAddWish={onAddWish}
-              initialOpenedEnvelope={true}
-              canViewWishes={true}
-            />
+            {currentGuest?.themeId === ROMANTIC_SPECIAL_TEMPLATE_ID ? (
+              <RomanticSpecialInvite
+                invitation={invitation}
+                currentGuest={currentGuest}
+                onOpenExportModal={onOpenExportModal}
+                onUpdateGuestRsvp={onUpdateGuestRsvp}
+                initialOpenedEnvelope={true}
+              />
+            ) : (
+              <InteractiveWebInvite
+                invitation={invitation}
+                currentGuest={currentGuest}
+                theme={theme}
+                onOpenExportModal={onOpenExportModal}
+                onUpdateGuestRsvp={onUpdateGuestRsvp}
+                onAddWish={onAddWish}
+                initialOpenedEnvelope={true}
+                canViewWishes={true}
+              />
+            )}
           </div>
         ) : showBezel ? (
           /* Device Mockup with Realistic Hardware Bezel */
@@ -442,16 +454,26 @@ export default function WebPreviewStudio({
               className={`relative w-full rounded-[36px] overflow-y-auto bg-slate-950 scrollbar-thin scrollbar-thumb-sky-500/20`}
               style={{ height: frameDims.height }}
             >
-              <InteractiveWebInvite
-                invitation={invitation}
-                currentGuest={currentGuest}
-                theme={theme}
-                onOpenExportModal={onOpenExportModal}
-                onUpdateGuestRsvp={onUpdateGuestRsvp}
-                onAddWish={onAddWish}
-                initialOpenedEnvelope={true}
-                canViewWishes={true}
-              />
+              {currentGuest?.themeId === ROMANTIC_SPECIAL_TEMPLATE_ID ? (
+                <RomanticSpecialInvite
+                  invitation={invitation}
+                  currentGuest={currentGuest}
+                  onOpenExportModal={onOpenExportModal}
+                  onUpdateGuestRsvp={onUpdateGuestRsvp}
+                  initialOpenedEnvelope={true}
+                />
+              ) : (
+                <InteractiveWebInvite
+                  invitation={invitation}
+                  currentGuest={currentGuest}
+                  theme={theme}
+                  onOpenExportModal={onOpenExportModal}
+                  onUpdateGuestRsvp={onUpdateGuestRsvp}
+                  onAddWish={onAddWish}
+                  initialOpenedEnvelope={true}
+                  canViewWishes={true}
+                />
+              )}
             </div>
           </div>
         ) : (
@@ -465,16 +487,26 @@ export default function WebPreviewStudio({
             }}
           >
             <div className="w-full h-full overflow-y-auto scrollbar-thin scrollbar-thumb-sky-500/20">
-              <InteractiveWebInvite
-                invitation={invitation}
-                currentGuest={currentGuest}
-                theme={theme}
-                onOpenExportModal={onOpenExportModal}
-                onUpdateGuestRsvp={onUpdateGuestRsvp}
-                onAddWish={onAddWish}
-                initialOpenedEnvelope={true}
-                canViewWishes={true}
-              />
+              {currentGuest?.themeId === ROMANTIC_SPECIAL_TEMPLATE_ID ? (
+                <RomanticSpecialInvite
+                  invitation={invitation}
+                  currentGuest={currentGuest}
+                  onOpenExportModal={onOpenExportModal}
+                  onUpdateGuestRsvp={onUpdateGuestRsvp}
+                  initialOpenedEnvelope={true}
+                />
+              ) : (
+                <InteractiveWebInvite
+                  invitation={invitation}
+                  currentGuest={currentGuest}
+                  theme={theme}
+                  onOpenExportModal={onOpenExportModal}
+                  onUpdateGuestRsvp={onUpdateGuestRsvp}
+                  onAddWish={onAddWish}
+                  initialOpenedEnvelope={true}
+                  canViewWishes={true}
+                />
+              )}
             </div>
           </div>
         )}

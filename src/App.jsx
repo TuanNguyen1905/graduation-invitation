@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { DEFAULT_INVITATION, THEMES, createDynamicTheme } from './data/mockData';
+import {
+  DEFAULT_INVITATION,
+  THEMES,
+  createDynamicTheme,
+  ROMANTIC_SPECIAL_TEMPLATE_ID
+} from './data/mockData';
 import Navbar from './components/Navbar';
 import LoginPage from './components/LoginPage';
 import LandingPage from './components/LandingPage';
 import DesignStudio from './components/DesignStudio';
 import InteractiveWebInvite from './components/InteractiveWebInvite';
+import RomanticSpecialInvite from './components/RomanticSpecialInvite';
 import GuestManager from './components/GuestManager';
 import CanvaEditor from './components/CanvaEditor';
 import WebPreviewStudio from './components/WebPreviewStudio';
@@ -115,36 +121,53 @@ function GuestPortal({
   onOpenGuestInvite
 }) {
   const [currentGuest, setCurrentGuest] = useState(null);
-  const [guestStatus, setGuestStatus] = useState('loading'); // 'loading' | 'found' | 'not-found'
+  const [guestStatus, setGuestStatus] = useState('loading'); // 'loading' | 'found' | 'not-found' | 'rate-limited'
+  const [guestErrorMsg, setGuestErrorMsg] = useState('');
   const [retryCode, setRetryCode] = useState('');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const mapGuestRow = (g, fallbackCode) => ({
+    id: g.id,
+    inviteCode: g.invite_code || fallbackCode,
+    name: g.name,
+    salutation: g.salutation,
+    relationship: g.relationship,
+    gender: g.gender || 'unisex',
+    persona: g.persona || 'energetic',
+    themeId: g.template_id || 'genz-ocean-blue',
+    themeMode: g.theme_mode || 'light',
+    customTheme: g.custom_theme_config ? JSON.parse(g.custom_theme_config) : null,
+    customNote: g.custom_note,
+    specialConfig: g.special_config ? JSON.parse(g.special_config) : null,
+    specialLocked: Boolean(g.special_locked),
+    rsvpStatus: g.rsvp_status || 'pending',
+    guestCount: g.guest_count || 1
+  });
 
   useEffect(() => {
     let cancelled = false;
     setGuestStatus('loading');
     setCurrentGuest(null);
 
-    fetchGuestInvitationFromApi(inviteCode).then((result) => {
+    let savedUnlockToken = null;
+    try {
+      savedUnlockToken = sessionStorage.getItem(`gradinvite_unlock_${String(inviteCode || '').trim().toUpperCase()}`);
+    } catch {
+      savedUnlockToken = null;
+    }
+
+    fetchGuestInvitationFromApi(inviteCode, savedUnlockToken).then((result) => {
       if (cancelled) return;
       const g = result?.data?.guest || result?.data?.guests?.[0];
       if (result?.found && g) {
-        setCurrentGuest({
-          id: g.id,
-          inviteCode: g.invite_code || inviteCode,
-          name: g.name,
-          salutation: g.salutation,
-          relationship: g.relationship,
-          gender: g.gender || 'unisex',
-          persona: g.persona || 'energetic',
-          themeId: g.template_id || 'genz-ocean-blue',
-          themeMode: g.theme_mode || 'light',
-          customTheme: g.custom_theme_config ? JSON.parse(g.custom_theme_config) : null,
-          customNote: g.custom_note,
-          rsvpStatus: g.rsvp_status || 'pending',
-          guestCount: g.guest_count || 1
-        });
+        setCurrentGuest(mapGuestRow(g, inviteCode));
+        setGuestErrorMsg('');
         setGuestStatus('found');
+      } else if (result?.status === 429 || result?.rateLimited) {
+        setGuestErrorMsg(result?.error || 'Bạn đã tra cứu mã sai quá nhiều lần. Vui lòng thử lại sau 10 phút.');
+        setGuestStatus('rate-limited');
       } else {
+        setGuestErrorMsg('');
         setGuestStatus('not-found');
       }
     });
@@ -176,6 +199,39 @@ function GuestPortal({
     );
   }
 
+  if (guestStatus === 'rate-limited') {
+    return (
+      <div
+        className="min-h-screen text-slate-900 flex items-center justify-center p-5 font-sans"
+        style={{
+          backgroundColor: '#f3f5f9',
+          backgroundImage: 'radial-gradient(ellipse at 50% 0%, #1e3a5f18 0%, transparent 65%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)'
+        }}
+      >
+        <div className="w-full max-w-md bg-white border border-rose-200 rounded-2xl p-6 sm:p-10 text-center space-y-5 shadow-[0_25px_70px_-12px_rgba(15,23,42,0.18)]">
+          <p className="text-xs sm:text-sm uppercase tracking-[0.2em] font-semibold text-rose-700">
+            429 · Tạm Giới Hạn Tra Cứu
+          </p>
+          <h1 className="text-2xl font-editorial font-semibold text-stone-900 text-balance">
+            Vui lòng thử lại sau ít phút
+          </h1>
+          <p className="text-sm text-stone-600 leading-relaxed">
+            {guestErrorMsg || 'Bạn đã nhập sai mã thiệp quá 10 lần trong 10 phút. Để bảo mật thông tin khách mời, hệ thống tạm khóa tra cứu từ thiết bị này trong ít phút.'}
+          </p>
+          {onNavigateToHome && (
+            <button
+              type="button"
+              onClick={onNavigateToHome}
+              className="min-h-[44px] px-5 py-2.5 rounded-lg bg-[#1e3a5f] hover:bg-[#172e4c] text-white text-xs sm:text-sm font-semibold cursor-pointer inline-flex items-center justify-center"
+            >
+              Quay về trang chủ sự kiện
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (guestStatus === 'not-found' || !currentGuest) {
     return (
       <div
@@ -185,15 +241,15 @@ function GuestPortal({
           backgroundImage: 'radial-gradient(ellipse at 50% 0%, #1e3a5f18 0%, transparent 65%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)'
         }}
       >
-        <div className="w-full max-w-md bg-white border border-slate-200/90 rounded-2xl p-8 sm:p-10 text-center space-y-5 shadow-[0_25px_70px_-12px_rgba(15,23,42,0.18),0_10px_25px_-5px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/[0.06]">
-          <p className="text-[11px] uppercase tracking-[0.24em] font-semibold text-[#1e3a5f]">
+        <div className="w-full max-w-md bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-10 text-center space-y-5 shadow-[0_25px_70px_-12px_rgba(15,23,42,0.18),0_10px_25px_-5px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/[0.06]">
+          <p className="text-xs sm:text-sm uppercase tracking-[0.2em] font-semibold text-[#1e3a5f]">
             404 · Mã Thiệp Không Hợp Lệ
           </p>
-          <h1 className="text-2xl font-editorial font-semibold text-stone-900">
+          <h1 className="text-2xl font-editorial font-semibold text-stone-900 text-balance">
             Không tìm thấy thiệp mời
           </h1>
-          <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-            Mã thiệp <span className="font-mono font-semibold text-stone-800">{inviteCode}</span> không tồn tại hoặc đã bị thu hồi. Vui lòng kiểm tra lại đúng mã thiệp bạn nhận được.
+          <p className="text-sm text-stone-600 leading-relaxed">
+            Mã thiệp <span className="font-mono font-semibold text-stone-800 break-all">{inviteCode}</span> không tồn tại hoặc đã bị thu hồi. Vui lòng kiểm tra lại đúng mã thiệp bạn nhận được.
           </p>
 
           {onOpenGuestInvite && (
@@ -202,18 +258,18 @@ function GuestPortal({
                 e.preventDefault();
                 if (retryCode.trim()) onOpenGuestInvite(retryCode.trim());
               }}
-              className="flex flex-col sm:flex-row gap-2 pt-2"
+              className="flex flex-col sm:flex-row gap-2.5 pt-2"
             >
               <input
                 type="text"
                 value={retryCode}
                 onChange={(e) => setRetryCode(e.target.value)}
                 placeholder="Nhập lại mã thiệp (VD: INV-...)"
-                className="flex-1 px-3.5 py-2.5 rounded-lg bg-white border border-stone-300 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-stone-600"
+                className="flex-1 min-h-[44px] px-3.5 py-2.5 rounded-lg bg-white border border-stone-300 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-stone-600"
               />
               <button
                 type="submit"
-                className="px-4 py-2.5 rounded-lg bg-[#1e3a5f] hover:bg-[#172e4c] text-white text-xs uppercase tracking-[0.14em] font-semibold cursor-pointer"
+                className="min-h-[44px] px-5 py-2.5 rounded-lg bg-[#1e3a5f] hover:bg-[#172e4c] text-white text-xs sm:text-sm uppercase tracking-[0.12em] font-semibold cursor-pointer"
               >
                 Mở lại
               </button>
@@ -221,11 +277,11 @@ function GuestPortal({
           )}
 
           {onNavigateToHome && (
-            <div className="pt-2">
+            <div className="pt-1">
               <button
                 type="button"
                 onClick={onNavigateToHome}
-                className="text-xs font-medium text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer"
+                className="min-h-[44px] px-4 py-2.5 inline-flex items-center justify-center text-sm font-medium text-stone-600 hover:text-stone-900 underline underline-offset-4 cursor-pointer"
               >
                 Quay về trang chủ sự kiện
               </button>
@@ -236,39 +292,41 @@ function GuestPortal({
     );
   }
 
+  const isSpecialRomantic = currentGuest?.themeId === ROMANTIC_SPECIAL_TEMPLATE_ID;
   const guestAccent = guestTheme?.accentColor || '#1e3a5f';
   const guestSecondary = guestTheme?.secondaryColor || guestAccent;
 
   return (
     <div
       className={`min-h-screen flex flex-col font-sans selection:bg-slate-200 selection:text-slate-900 ${
-        isGuestDarkMode ? 'bg-[#0e1014]' : 'bg-white'
+        isSpecialRomantic ? 'bg-[#fff9fa]' : isGuestDarkMode ? 'bg-[#0e1014]' : 'bg-[#f3f5f9]'
       }`}
       style={
-        isGuestDarkMode
+        isSpecialRomantic || isGuestDarkMode
           ? undefined
           : {
-              backgroundImage: `linear-gradient(180deg, ${guestAccent}14 0%, #ffffff 34%, ${guestSecondary}10 100%)`
+              backgroundImage: `radial-gradient(ellipse at 50% 0%, ${guestAccent}18 0%, transparent 65%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)`
             }
       }
     >
-      {/* Minimal Return Bar */}
+      {/* Minimal Return Bar (safe-area + >= 44px touch targets) */}
       {onNavigateToHome && (
         <header
-          className={`px-4 pt-3 text-sm flex items-center justify-between max-w-xl w-full mx-auto ${
-            isGuestDarkMode ? 'text-stone-300' : 'text-stone-600'
+          className={`invitation-shell px-4 pt-2 sm:pt-3 safe-area-top text-sm flex items-center justify-between gap-3 ${
+            isGuestDarkMode && !isSpecialRomantic ? 'text-stone-300' : 'text-stone-700'
           }`}
         >
           <button
+            type="button"
             onClick={onNavigateToHome}
-            className={`text-xs sm:text-sm font-medium cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
-              isGuestDarkMode ? 'hover:text-stone-100' : 'hover:text-stone-900'
+            className={`min-h-[44px] min-w-[44px] px-3 py-2 -ml-3 rounded-lg text-sm font-medium cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
+              isGuestDarkMode && !isSpecialRomantic ? 'hover:text-stone-100 hover:bg-white/5' : 'hover:text-stone-900 hover:bg-white/70'
             }`}
           >
             <Home className="w-4 h-4" />
             <span>Trang sự kiện</span>
           </button>
-          <span className="text-xs sm:text-sm font-medium truncate max-w-[200px]">
+          <span className="text-sm font-medium truncate max-w-[180px] sm:max-w-[260px]">
             {currentGuest.name}
           </span>
         </header>
@@ -276,16 +334,30 @@ function GuestPortal({
 
       {/* Dedicated Guest View */}
       <main className="flex-1">
-        <InteractiveWebInvite
-          invitation={invitation}
-          currentGuest={currentGuest}
-          theme={guestTheme}
-          onOpenExportModal={() => setIsExportModalOpen(true)}
-          onUpdateGuestRsvp={(id, status, count) =>
-            onUpdateGuestRsvp(id, status, count, currentGuest.inviteCode)
-          }
-          onAddWish={onAddWish}
-        />
+        {isSpecialRomantic ? (
+          <RomanticSpecialInvite
+            invitation={invitation}
+            currentGuest={currentGuest}
+            onOpenExportModal={() => setIsExportModalOpen(true)}
+            onUpdateGuestRsvp={(id, status, count) =>
+              onUpdateGuestRsvp(id, status, count, currentGuest.inviteCode)
+            }
+            onUnlockedGuest={(unlockedRow) => {
+              setCurrentGuest(mapGuestRow(unlockedRow, currentGuest.inviteCode));
+            }}
+          />
+        ) : (
+          <InteractiveWebInvite
+            invitation={invitation}
+            currentGuest={currentGuest}
+            theme={guestTheme}
+            onOpenExportModal={() => setIsExportModalOpen(true)}
+            onUpdateGuestRsvp={(id, status, count) =>
+              onUpdateGuestRsvp(id, status, count, currentGuest.inviteCode)
+            }
+            onAddWish={onAddWish}
+          />
+        )}
       </main>
 
       <CardExportModal
@@ -433,7 +505,7 @@ function AdminPanel({
               className="p-3.5 rounded-2xl bg-sky-50/60 border border-sky-100/80 hover:bg-sky-100/60 transition-all cursor-pointer group shadow-2xs"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase font-genz">
+                <span className="text-xs font-bold text-slate-500 uppercase font-genz">
                   Tổng Khách Mời
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-600 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -454,7 +526,7 @@ function AdminPanel({
               className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-100 hover:bg-emerald-100/60 transition-all cursor-pointer group shadow-2xs"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-700 uppercase font-genz">
+                <span className="text-xs font-bold text-emerald-700 uppercase font-genz">
                   Xác Nhận Tham Dự
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -466,7 +538,7 @@ function AdminPanel({
                   {confirmedGuests}
                 </span>
                 <span className="text-xs text-emerald-700 font-semibold">
-                  ({confirmedPax} khách • {rsvpRate}%)
+                  ({confirmedPax} khách · {rsvpRate}%)
                 </span>
               </div>
             </div>
@@ -477,7 +549,7 @@ function AdminPanel({
               className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100 hover:bg-indigo-100/60 transition-all cursor-pointer group shadow-2xs"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-indigo-700 uppercase font-genz">
+                <span className="text-xs font-bold text-indigo-700 uppercase font-genz">
                   Kho Template
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -500,7 +572,7 @@ function AdminPanel({
               className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-100 hover:bg-amber-100/60 transition-all cursor-pointer group shadow-2xs"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-amber-700 uppercase font-genz">
+                <span className="text-xs font-bold text-amber-700 uppercase font-genz">
                   Sổ Lưu Bút (Admin)
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -764,6 +836,7 @@ export default function App() {
                 themeId: g.template_id || 'genz-ocean-blue',
                 themeMode: g.theme_mode || 'dark',
                 customTheme: g.custom_theme_config ? JSON.parse(g.custom_theme_config) : null,
+                specialConfig: g.special_config ? JSON.parse(g.special_config) : null,
                 customNote: g.custom_note,
                 rsvpStatus: g.rsvp_status,
                 guestCount: g.guest_count,
@@ -868,21 +941,27 @@ export default function App() {
   // 0. 404 NOT FOUND ROUTE
   if (currentRoute.type === 'not-found') {
     return (
-      <div className="min-h-screen bg-white text-slate-900 flex items-center justify-center p-5 font-sans">
-        <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl p-8 sm:p-10 text-center space-y-5 shadow-[0_16px_44px_-16px_rgba(15,23,42,0.1)]">
-          <p className="text-[11px] uppercase tracking-[0.24em] font-semibold text-[#1e3a5f]">
+      <div
+        className="min-h-screen text-slate-900 flex items-center justify-center p-5 font-sans"
+        style={{
+          backgroundColor: '#f3f5f9',
+          backgroundImage: 'radial-gradient(ellipse at 50% 0%, #1e3a5f18 0%, transparent 65%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)'
+        }}
+      >
+        <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 sm:p-10 text-center space-y-5 shadow-[0_25px_70px_-12px_rgba(15,23,42,0.18),0_10px_25px_-5px_rgba(15,23,42,0.08)]">
+          <p className="text-xs sm:text-sm uppercase tracking-[0.2em] font-semibold text-[#1e3a5f]">
             404 · Không Tìm Thấy Trang
           </p>
-          <h1 className="text-2xl font-editorial font-semibold text-stone-900">
+          <h1 className="text-2xl font-editorial font-semibold text-stone-900 text-balance">
             Đường dẫn không tồn tại
           </h1>
-          <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-            Trang <span className="font-mono text-stone-800">{currentRoute.pathname}</span> không có trên hệ thống.
+          <p className="text-sm text-stone-600 leading-relaxed">
+            Trang <span className="font-mono text-stone-800 break-all">{currentRoute.pathname}</span> không có trên hệ thống.
           </p>
           <button
             type="button"
             onClick={handleNavigateToHome}
-            className="px-5 py-2.5 rounded-lg bg-[#1e3a5f] hover:bg-[#172e4c] text-white text-xs uppercase tracking-[0.14em] font-semibold cursor-pointer"
+            className="min-h-[44px] px-5 py-2.5 rounded-lg bg-[#1e3a5f] hover:bg-[#172e4c] text-white text-xs sm:text-sm uppercase tracking-[0.12em] font-semibold cursor-pointer inline-flex items-center justify-center"
           >
             Về trang chủ sự kiện
           </button>

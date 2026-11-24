@@ -22,7 +22,7 @@ export const DEFAULT_INVITATION = {
     honor: "",
     school: "ĐẠI HỌC BÁCH KHOA",
     faculty: "Khoa Khoa Học & Kỹ Thuật Máy Tính",
-    classBatch: "K22 • 2022 - 2026",
+    classBatch: "K22 · 2022 - 2026",
     avatarUrl: "/uploads/img-1794464175331-v1mjf0.jpg",
     quote: "Sau bao mùa deadline và những ngày chạy đồ án hết công suất, cuối cùng Tuấn cũng chính thức tốt nghiệp Bách Khoa.",
     spotifySong: "",
@@ -30,17 +30,17 @@ export const DEFAULT_INVITATION = {
   },
   ceremony: {
     date: "2026-11-28",
-    time: "09:00",
+    time: "07:30",
     endExpected: "11:30",
     venueName: "Hội Trường Lớn A5",
     address: "268 Lý Thường Kiệt, Phường 14, Quận 10, TP. Hồ Chí Minh",
     mapQuery: "268 Lý Thường Kiệt, Phường 14, Quận 10, TP Hồ Chí Minh",
     dressCode: "",
     timeline: [
-      { time: "08:45", title: "Đón khách & Chụp ảnh kỷ niệm", desc: "Đón tiếp gia đình, bạn bè và lưu giữ khoảnh khắc trước giờ làm lễ." },
-      { time: "09:00", title: "Khai mạc Lễ Trao Bằng", desc: "Nghi thức khai mạc và diễn văn chúc mừng tân cử nhân." },
-      { time: "09:45", title: "Nghi thức Trao Bằng Cử Nhân", desc: "Khoảnh khắc lên bục nhận tấm bằng cử nhân tốt nghiệp." },
-      { time: "11:00", title: "Chụp ảnh tập thể & Kết thúc buổi lễ", desc: "Chụp ảnh lưu niệm cùng người thân, bạn bè tại khuôn viên trường." },
+      { time: "07:30", title: "Đón khách, Check-in & Chụp ảnh kỷ niệm", desc: "Đón tiếp gia đình, bạn bè, check-in và lưu giữ khoảnh khắc trước giờ làm lễ." },
+      { time: "08:30", title: "Khai mạc Lễ Trao Bằng", desc: "Nghi thức khai mạc và diễn văn chúc mừng tân cử nhân." },
+      { time: "09:30", title: "Nghi thức Trao Bằng Cử Nhân", desc: "Khoảnh khắc lên bục nhận tấm bằng cử nhân tốt nghiệp." },
+      { time: "11:00", title: "Chụp ảnh tập thể & Kết thúc buổi lễ", desc: "Chụp ảnh lưu niệm cùng người thân, bạn bè tại khuôn viên trường (kết thúc 11:30)." },
     ]
   },
   theme: {
@@ -426,4 +426,61 @@ export function createDynamicTheme({
     isCustom: true
   };
 }
+
+export const ROMANTIC_SPECIAL_TEMPLATE_ID = "romantic-thuy-bespoke";
+
+export const ROMANTIC_PALETTES = [
+  {
+    id: "blush-rose",
+    name: "Blush Rose & Champagne",
+    subtitle: "Sáng thanh khiết, dịu ngọt & sang trọng",
+    isDark: false,
+    accent: "#b84a62",
+    secondary: "#d4945a",
+    seal: "#9e3049",
+    envelope: "#fdf2f4",
+    envelopeInner: "#f7dce2",
+    surface: "#fffbfc",
+    pageBg: "linear-gradient(155deg, #fff9fa 0%, #fdf1f4 45%, #fbf5ed 100%)",
+    textPrimary: "#2b1b21",
+    textMuted: "#73545e",
+    particleColor: "#e8a5b5",
+    petalColor: "#f2bac8"
+  },
+  {
+    id: "burgundy-velvet",
+    name: "Burgundy Velvet & Ivory",
+    subtitle: "Đỏ rượu vang cổ điển & kem ấm",
+    isDark: false,
+    accent: "#7c1d30",
+    secondary: "#c59b5f",
+    seal: "#6b1526",
+    envelope: "#faf3f4",
+    envelopeInner: "#eed9dd",
+    surface: "#ffffff",
+    pageBg: "linear-gradient(155deg, #fcf8f8 0%, #f7ecee 50%, #f5efe6 100%)",
+    textPrimary: "#261217",
+    textMuted: "#6c4850",
+    particleColor: "#c59b5f",
+    petalColor: "#d99aa6"
+  },
+  {
+    id: "lavender-dusk",
+    name: "Lavender Dusk & Pearl",
+    subtitle: "Tím oải hương mộng mơ & ngọc trai",
+    isDark: false,
+    accent: "#6e4e8e",
+    secondary: "#c28aa3",
+    seal: "#593b78",
+    envelope: "#f9f6fc",
+    envelopeInner: "#eae1f4",
+    surface: "#ffffff",
+    pageBg: "linear-gradient(155deg, #fbfaff 0%, #f3eef9 50%, #f9f2f6 100%)",
+    textPrimary: "#221a2d",
+    textMuted: "#645676",
+    particleColor: "#c7b2e2",
+    petalColor: "#d9c2ee"
+  }
+];
+
 
